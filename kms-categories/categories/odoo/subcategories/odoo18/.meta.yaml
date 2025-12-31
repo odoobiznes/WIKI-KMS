@@ -1,0 +1,8 @@
+id: "subcat-odoo-odoo18"
+name: "odoo18"
+slug: "odoo18"
+category: "odoo"
+description: "odoo18 subcategory"
+is_active: true
+created_at: "2025-12-29T19:17:03+01:00"
+updated_at: "2025-12-29T19:17:03+01:00"

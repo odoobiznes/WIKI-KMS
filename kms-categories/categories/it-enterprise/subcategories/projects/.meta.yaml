@@ -1,0 +1,6 @@
+slug: projects
+name: Projekty
+description: IT Enterprise projekty
+is_active: true
+metadata:
+  icon: fa-folder-open

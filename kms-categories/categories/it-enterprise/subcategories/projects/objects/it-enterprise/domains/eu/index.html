@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Enterprise - Modern Software Solutions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="text-2xl font-bold text-blue-600">IT Enterprise</div>
+                    <span class="text-sm text-gray-500">Global</span>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#solutions" class="text-gray-700 hover:text-blue-600 transition">Solutions</a>
+                    <a href="#products" class="text-gray-700 hover:text-blue-600 transition">Products</a>
+                    <a href="#partners" class="text-gray-700 hover:text-blue-600 transition">Partners</a>
+                    <a href="#investors" class="text-gray-700 hover:text-blue-600 transition">Investors</a>
+                    <a href="#contact" class="text-gray-700 hover:text-blue-600 transition">Contact</a>
+                    <div class="relative">
+                        <button class="text-gray-700 hover:text-blue-600 transition">
+                            <i class="fas fa-globe"></i> EN
+                        </button>
+                    </div>
+                </div>
+                <button class="md:hidden text-gray-700">
+                    <i class="fas fa-bars text-2xl"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="gradient-bg text-white py-20">
+        <div class="container mx-auto px-6">
+            <div class="flex flex-col md:flex-row items-center">
+                <div class="md:w-1/2 mb-10 md:mb-0">
+                    <h1 class="text-5xl font-bold mb-6">Next-Generation Software Solutions</h1>
+                    <p class="text-xl mb-8 opacity-90">Empowering businesses with AI-driven technology, financial innovation, and comprehensive digital transformation.</p>
+                    <div class="flex space-x-4">
+                        <button class="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition">
+                            Get Started
+                        </button>
+                        <button class="border-2 border-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition">
+                            Book Demo
+                        </button>
+                    </div>
+                </div>
+                <div class="md:w-1/2">
+                    <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-8">
+                        <div class="text-center">
+                            <i class="fas fa-rocket text-6xl mb-4"></i>
+                            <h3 class="text-2xl font-bold mb-2">Global Innovation</h3>
+                            <p>Connecting Czech Republic, Israel, and Ukraine through technology</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Solutions Section -->
+    <section id="solutions" class="py-20">
+        <div class="container mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-16">Our Solutions</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-white rounded-xl p-8 shadow-lg card-hover">
+                    <div class="text-blue-600 text-4xl mb-4">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4">AI-Powered Analytics</h3>
+                    <p class="text-gray-600 mb-4">Advanced machine learning solutions for business intelligence and predictive analytics.</p>
+                    <a href="#" class="text-blue-600 font-semibold hover:text-blue-700">Learn More →</a>
+                </div>
+                <div class="bg-white rounded-xl p-8 shadow-lg card-hover">
+                    <div class="text-blue-600 text-4xl mb-4">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4">Financial Technology</h3>
+                    <p class="text-gray-600 mb-4">Cutting-edge fintech solutions for modern financial operations and digital banking.</p>
+                    <a href="#" class="text-blue-600 font-semibold hover:text-blue-700">Learn More →</a>
+                </div>
+                <div class="bg-white rounded-xl p-8 shadow-lg card-hover">
+                    <div class="text-blue-600 text-4xl mb-4">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4">Cybersecurity</h3>
+                    <p class="text-gray-600 mb-4">Enterprise-grade security solutions to protect your digital assets and data.</p>
+                    <a href="#" class="text-blue-600 font-semibold hover:text-blue-700">Learn More →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Products Section -->
+    <section id="products" class="py-20 bg-gray-100">
+        <div class="container mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-16">Product Portfolio</h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-white rounded-lg shadow-lg overflow-hidden card-hover">
+                    <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4">
+                        <i class="fas fa-calculator text-3xl"></i>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-bold mb-2">Enterprise Accounting</h3>
+                        <p class="text-gray-600 text-sm mb-4">Complete financial management</p>
+                        <div class="text-blue-600 font-bold">From €39/month</div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-lg overflow-hidden card-hover">
+                    <div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4">
+                        <i class="fas fa-users text-3xl"></i>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-bold mb-2">HR Management</h3>
+                        <p class="text-gray-600 text-sm mb-4">Human resources platform</p>
+                        <div class="text-purple-600 font-bold">From €29/month</div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-lg overflow-hidden card-hover">
+                    <div class="bg-gradient-to-r from-green-500 to-green-600 text-white p-4">
+                        <i class="fas fa-shopping-cart text-3xl"></i>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-bold mb-2">E-Commerce Platform</h3>
+                        <p class="text-gray-600 text-sm mb-4">Online retail solution</p>
+                        <div class="text-green-600 font-bold">From €49/month</div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-lg overflow-hidden card-hover">
+                    <div class="bg-gradient-to-r from-red-500 to-red-600 text-white p-4">
+                        <i class="fas fa-robot text-3xl"></i>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-bold mb-2">AI Assistant</h3>
+                        <p class="text-gray-600 text-sm mb-4">Intelligent business assistant</p>
+                        <div class="text-red-600 font-bold">From €59/month</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Partners Section -->
+    <section id="partners" class="py-20">
+        <div class="container mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-16">Strategic Partners</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-white rounded-xl p-8 shadow-lg text-center card-hover">
+                    <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-university text-blue-600 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">G7 Prague</h3>
+                    <p class="text-gray-600 mb-4">Czech Republic - Innovation and social impact organization supporting technology development and education.</p>
+                    <a href="https://g7-praha.eu" class="text-blue-600 hover:text-blue-700">Visit Website →</a>
+                </div>
+                <div class="bg-white rounded-xl p-8 shadow-lg text-center card-hover">
+                    <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-star-of-david text-green-600 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Beit Lubavitch</h3>
+                    <p class="text-gray-600 mb-4">Israel - Educational institution combining traditional values with modern technology and innovation.</p>
+                    <a href="https://beitlubavitch.co.il" class="text-blue-600 hover:text-blue-700">Visit Website →</a>
+                </div>
+                <div class="bg-white rounded-xl p-8 shadow-lg text-center card-hover">
+                    <div class="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-dove text-purple-600 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Hasidav</h3>
+                    <p class="text-gray-600 mb-4">Ukraine - Development organization focused on technology education and digital transformation.</p>
+                    <a href="https://hasidav.org" class="text-blue-600 hover:text-blue-700">Visit Website →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Investors Section -->
+    <section id="investors" class="py-20 bg-gray-100">
+        <div class="container mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4">Investment Opportunity</h2>
+                <p class="text-xl text-gray-600">Join us in revolutionizing the software industry</p>
+            </div>
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-white rounded-2xl shadow-xl p-12">
+                    <h3 class="text-3xl font-bold mb-6">Why Invest in IT Enterprise?</h3>
+                    <div class="grid md:grid-cols-2 gap-8 mb-8">
+                        <div>
+                            <h4 class="text-xl font-semibold mb-4 text-blue-600">Market Opportunity</h4>
+                            <ul class="space-y-2 text-gray-600">
+                                <li class="flex items-start">
+                                    <i class="fas fa-check text-green-500 mr-3 mt-1"></i>
+                                    <span>Growing demand for AI-powered business solutions</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <i class="fas fa-check text-green-500 mr-3 mt-1"></i>
+                                    <span>Expanding fintech market in Central and Eastern Europe</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <i class="fas fa-check text-green-500 mr-3 mt-1"></i>
+                                    <span>Strong international partnerships</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold mb-4 text-blue-600">Competitive Advantages</h4>
+                            <ul class="space-y-2 text-gray-600">
+                                <li class="flex items-start">
+                                    <i class="fas fa-check text-green-500 mr-3 mt-1"></i>
+                                    <span>Proprietary AI technology</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <i class="fas fa-check text-green-500 mr-3 mt-1"></i>
+                                    <span>Multi-country presence and expertise</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <i class="fas fa-check text-green-500 mr-3 mt-1"></i>
+                                    <span>Strong R&D capabilities</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <button class="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+                            Download Investment Prospectus
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="py-20">
+        <div class="container mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4">Contact Us</h2>
+                <p class="text-xl text-gray-600">Ready to transform your business?</p>
+            </div>
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-white rounded-2xl shadow-xl p-12">
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="text-2xl font-bold mb-6">Get in Touch</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center">
+                                    <i class="fas fa-phone text-blue-600 mr-4"></i>
+                                    <span>+420 608 958 313</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-envelope text-blue-600 mr-4"></i>
+                                    <span>international@it-enterprise.eu</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-map-marker-alt text-blue-600 mr-4"></i>
+                                    <span>Domanovická 2480, Prague 9, Czech Republic</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-bold mb-6">Send Message</h3>
+                            <form class="space-y-4">
+                                <input type="text" placeholder="Your Name" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600">
+                                <input type="email" placeholder="Email Address" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600">
+                                <select class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600">
+                                    <option>Select Interest</option>
+                                    <option>Partnership</option>
+                                    <option>Investment</option>
+                                    <option>Products</option>
+                                    <option>General Inquiry</option>
+                                </select>
+                                <textarea placeholder="Message" rows="4" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600"></textarea>
+                                <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+                                    Send Message
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="container mx-auto px-6">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div>
+                    <h4 class="text-xl font-bold mb-4">IT Enterprise</h4>
+                    <p class="text-gray-400">Global software solutions powered by AI and innovation</p>
+                </div>
+                <div>
+                    <h4 class="text-xl font-bold mb-4">Solutions</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white">AI Analytics</a></li>
+                        <li><a href="#" class="hover:text-white">Fintech</a></li>
+                        <li><a href="#" class="hover:text-white">Cybersecurity</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-xl font-bold mb-4">Partners</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white">G7 Prague</a></li>
+                        <li><a href="#" class="hover:text-white">Beit Lubavitch</a></li>
+                        <li><a href="#" class="hover:text-white">Hasidav</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-xl font-bold mb-4">Connect</h4>
+                    <div class="flex space-x-4">
+                        <a href="#" class="text-gray-400 hover:text-white"><i class="fab fa-linkedin text-xl"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-white"><i class="fab fa-twitter text-xl"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-white"><i class="fab fa-github text-xl"></i></a>
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2025 IT Enterprise. All rights reserved. | Connecting Czech Republic, Israel & Ukraine through technology</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Form submission
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                alert('Thank you for your message. We will contact you soon.');
+                this.reset();
+            });
+        });
+    </script>
+</body>
+</html>

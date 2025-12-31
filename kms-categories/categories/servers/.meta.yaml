@@ -1,0 +1,13 @@
+id: "cat-servers"
+name: "servers"
+type: "product"
+slug: "servers"
+description: "SERVERS category"
+is_active: true
+created_at: "2025-12-29T19:17:03+01:00"
+updated_at: "2025-12-29T19:17:03+01:00"
+default_folders:
+  - "plany"
+  - "instrukce"
+  - "code"
+  - "docs"

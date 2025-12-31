@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Enterprise Pro - Edukační portál</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="text-2xl font-bold text-green-600">IT Enterprise</div>
+                    <span class="text-sm text-gray-500">Pro</span>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#sluzby" class="text-gray-700 hover:text-green-600 transition">Služby</a>
+                    <a href="#domeny" class="text-gray-700 hover:text-green-600 transition">Domény</a>
+                    <a href="#projekty" class="text-gray-700 hover:text-green-600 transition">Projekty</a>
+                    <a href="#registrace" class="text-gray-700 hover:text-green-600 transition">Registrace</a>
+                    <div class="relative">
+                        <button class="text-gray-700 hover:text-green-600 transition">
+                            <i class="fas fa-globe"></i> CZ
+                        </button>
+                    </div>
+                </div>
+                <button class="md:hidden text-gray-700">
+                    <i class="fas fa-bars text-2xl"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="gradient-bg text-white py-20">
+        <div class="container mx-auto px-6">
+            <div class="text-center">
+                <h1 class="text-5xl font-bold mb-6">Vytvořte si svou online přítomnost</h1>
+                <p class="text-xl mb-8 opacity-90">Pro studenty a začínající profesionály. Získejte 3. úrovňovou doménu a prezentujte své projekty.</p>
+                <div class="flex justify-center space-x-4">
+                    <button class="bg-white text-green-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition">
+                        Vytvořit web zdarma
+                    </button>
+                    <button class="border-2 border-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-green-600 transition">
+                        Ukázky projektů
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section id="sluzby" class="py-20">
+        <div class="container mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-16">Co nabízíme</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-white rounded-xl p-8 shadow-lg card-hover">
+                    <div class="text-green-600 text-4xl mb-4">
+                        <i class="fas fa-globe"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4">3. úrovňové domény</h3>
+                    <p class="text-gray-600 mb-4">Získejte profesionální doménu pro své projekty a životopisy.</p>
+                    <ul class="text-sm text-gray-600 space-y-2">
+                        <li><i class="fas fa-check text-green-500 mr-2"></i>Vaše.jméno.it-enterprise.pro</li>
+                        <li><i class="fas fa-check text-green-500 mr-2"></i>SSL certifikát zdarma</li>
+                        <li><i class="fas fa-check text-green-500 mr-2"></i>Automatická konfigurace</li>
+                    </ul>
+                </div>
+                
+                <div class="bg-white rounded-xl p-8 shadow-lg card-hover">
+                    <div class="text-green-600 text-4xl mb-4">
+                        <i class="fas fa-code"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4">Vývojové nástroje</h3>
+                    <p class="text-gray-600 mb-4">Přístup k moderním nástrojům pro vývoj a testování.</p>
+                    <ul class="text-sm text-gray-600 space-y-2">
+                        <li><i class="fas fa-check text-green-500 mr-2"></i>Git repozitáře</li>
+                        <li><i class="fas fa-check text-green-500 mr-2"></i>Testovací prostředí</li>
+                        <li><i class="fas fa-check text-green-500 mr-2"></i>CI/CD pipeline</li>
+                    </ul>
+                </div>
+                
+                <div class="bg-white rounded-xl p-8 shadow-lg card-hover">
+                    <div class="text-green-600 text-4xl mb-4">
+                        <i class="fas fa-graduation-cap"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4">Vzdělávání</h3>
+                    <p class="text-gray-600 mb-4">Kurzy a workshopy pro rozvoj vašich dovedností.</p>
+                    <ul class="text-sm text-gray-600 space-y-2">
+                        <li><i class="fas fa-check text-green-500 mr-2"></i>Programovací kurzy</li>
+                        <li><i class="fas fa-check text-green-500 mr-2"></i>Workshopy</li>
+                        <li><i class="fas fa-check text-green-500 mr-2"></i>Mentoring</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Domains Section -->
+    <section id="domeny" class="py-20 bg-gray-100">
+        <div class="container mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-16">Dostupné domény</h2>
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-white rounded-2xl shadow-xl p-8">
+                    <h3 class="text-2xl font-bold mb-6">Vytvořte si svou doménu</h3>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Vaše jméno nebo projekt</label>
+                            <input type="text" placeholder="jan-novak" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-green-600">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Doména</label>
+                            <select class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-green-600">
+                                <option>.it-enterprise.pro</option>
+                                <option>.business.eu.com</option>
+                                <option>.biznes.cz</option>
+                                <option>.services.eu.com</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-6 p-4 bg-green-50 rounded-lg">
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-green-600 mb-2">jan-novak.it-enterprise.pro</div>
+                            <div class="text-gray-600">Vaše nová doména bude aktivní během 5 minut</div>
+                        </div>
+                    </div>
+                    <button class="w-full mt-6 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">
+                        Vytvořit doménu
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Projects Section -->
+    <section id="projekty" class="py-20">
+        <div class="container mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-16">Ukázky studentských projektů</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden card-hover">
+                    <div class="h-48 bg-gradient-to-br from-blue-400 to-blue-600"></div>
+                    <div class="p-6">
+                        <h3 class="font-bold mb-2">Portfolio web designera</h3>
+                        <p class="text-gray-600 text-sm mb-4">Moderní portfolio s ukázkami prací</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-500">petr-svoboda.it-enterprise.pro</span>
+                            <a href="#" class="text-green-600 hover:text-green-700">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden card-hover">
+                    <div class="h-48 bg-gradient-to-br from-purple-400 to-purple-600"></div>
+                    <div class="p-6">
+                        <h3 class="font-bold mb-2">E-commerce projekt</h3>
+                        <p class="text-gray-600 text-sm mb-4">Online obchod s lokálními produkty</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-500">maria-novotna.it-enterprise.pro</span>
+                            <a href="#" class="text-green-600 hover:text-green-700">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden card-hover">
+                    <div class="h-48 bg-gradient-to-br from-green-400 to-green-600"></div>
+                    <div class="p-6">
+                        <h3 class="font-bold mb-2">Blog o technologii</h3>
+                        <p class="text-gray-600 text-sm mb-4">Články o AI a programování</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-500">tomas-prochazka.it-enterprise.pro</span>
+                            <a href="#" class="text-green-600 hover:text-green-700">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Registration Section -->
+    <section id="registrace" class="py-20 bg-gray-100">
+        <div class="container mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4">Zaregistrujte se zdarma</h2>
+                <p class="text-xl text-gray-600">Přidejte se k naší komunitě studentů a profesionálů</p>
+            </div>
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-white rounded-2xl shadow-xl p-8">
+                    <form class="space-y-4">
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <input type="text" placeholder="Jméno" class="px-4 py-3 border rounded-lg focus:outline-none focus:border-green-600">
+                            <input type="text" placeholder="Příjmení" class="px-4 py-3 border rounded-lg focus:outline-none focus:border-green-600">
+                        </div>
+                        <input type="email" placeholder="Email" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-green-600">
+                        <input type="password" placeholder="Heslo" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-green-600">
+                        <select class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-green-600">
+                            <option>Vyberte školu/organizaci</option>
+                            <option>G7 Praha o.p.s.</option>
+                            <option>Beit Lubavitch</option>
+                            <option>Hasidav</option>
+                            <option>Jiné</option>
+                        </select>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="terms" class="mr-2">
+                            <label for="terms" class="text-sm text-gray-600">
+                                Souhlasím s <a href="#" class="text-green-600 hover:text-green-700">podmínkami použití</a>
+                            </label>
+                        </div>
+                        <button type="submit" class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">
+                            Vytvořit účet
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="container mx-auto px-6">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div>
+                    <h4 class="text-xl font-bold mb-4">IT Enterprise Pro</h4>
+                    <p class="text-gray-400">Edukační portál pro studenty a profesionály</p>
+                </div>
+                <div>
+                    <h4 class="text-xl font-bold mb-4">Služby</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white">Domény</a></li>
+                        <li><a href="#" class="hover:text-white">Vývoj</a></li>
+                        <li><a href="#" class="hover:text-white">Vzdělávání</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-xl font-bold mb-4">Partneři</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white">G7 Praha</a></li>
+                        <li><a href="#" class="hover:text-white">Beit Lubavitch</a></li>
+                        <li><a href="#" class="hover:text-white">Hasidav</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-xl font-bold mb-4">Kontakt</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white">Podpora</a></li>
+                        <li><a href="#" class="hover:text-white">FAQ</a></li>
+                        <li><a href="#" class="hover:text-white">Forum</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2025 IT Enterprise Pro. Všechna práva vyhrazena.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Domain preview
+        const nameInput = document.querySelector('input[placeholder="jan-novak"]');
+        const domainSelect = document.querySelector('select');
+        const previewElement = document.querySelector('.text-green-600');
+
+        if (nameInput && domainSelect && previewElement) {
+            function updatePreview() {
+                const name = nameInput.value || 'vas-jmeno';
+                const domain = domainSelect.value;
+                previewElement.textContent = `${name}${domain}`;
+            }
+
+            nameInput.addEventListener('input', updatePreview);
+            domainSelect.addEventListener('change', updatePreview);
+        }
+
+        // Form submission
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                alert('Děkujeme za registraci. Brzy vám pošleme potvrzovací email.');
+                this.reset();
+            });
+        });
+    </script>
+</body>
+</html>

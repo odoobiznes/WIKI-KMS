@@ -1,0 +1,8 @@
+slug: it-enterprise
+name: IT-Enterprise
+type: system
+description: IT Enterprise projekty a systémy
+is_active: true
+metadata:
+  icon: fa-building
+  base_path: /opt/IT-Enterprise/

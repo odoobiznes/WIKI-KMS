@@ -1,0 +1,383 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: it-enterprise-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-itenterprise}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-itenterprise}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/backup:/backup
+    ports:
+      - "5432:5432"
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U itenterprise"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: it-enterprise-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Service
+  api:
+    build:
+      context: .
+      dockerfile: ./services/api/Dockerfile
+    container_name: it-enterprise-api
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=${DATABASE_URL:-postgresql://itenterprise:changeme@postgres:5432/itenterprise}
+      - JWT_SECRET=${JWT_SECRET:-changeme-in-production}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.it-enterprise.cz`) || Host(`api.it-enterprise.cloud`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.api.loadbalancer.server.port=3000"
+
+  # Email Service
+  email-service:
+    build:
+      context: .
+      dockerfile: ./services/email-service/Dockerfile
+    container_name: it-enterprise-email-service
+    environment:
+      - NODE_ENV=production
+      - EMAIL_SERVICE_PORT=3002
+      - DATABASE_URL=${DATABASE_URL:-postgresql://itenterprise:changeme@postgres:5432/itenterprise}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
+      - APP_URL=${APP_URL:-https://it-enterprise.cz}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.email-service.rule=Host(`email.it-enterprise.cloud`)"
+      - "traefik.http.routers.email-service.entrypoints=websecure"
+      - "traefik.http.routers.email-service.tls.certresolver=letsencrypt"
+          - "traefik.http.services.email-service.loadbalancer.server.port=3013"
+
+  # Domain Manager Service
+  domain-manager:
+    build:
+      context: .
+      dockerfile: ./services/domain-manager/Dockerfile
+    container_name: it-enterprise-domain-manager
+    environment:
+      - NODE_ENV=production
+          - DOMAIN_MANAGER_PORT=3012
+      - DATABASE_URL=${DATABASE_URL:-postgresql://itenterprise:changeme@postgres:5432/itenterprise}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      traefik:
+        condition: service_started
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/nginx:/etc/nginx/sites-available:ro
+      - ./config/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.domain-manager.rule=Host(`domains.it-enterprise.cloud`)"
+      - "traefik.http.routers.domain-manager.entrypoints=websecure"
+      - "traefik.http.routers.domain-manager.tls.certresolver=letsencrypt"
+          - "traefik.http.services.domain-manager.loadbalancer.server.port=3012"
+
+  # Traefik Reverse Proxy
+  traefik:
+    image: traefik:v3.0
+    container_name: it-enterprise-traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@it-enterprise.cz}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/traefik/letsencrypt:/letsencrypt
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+
+  # Web CZ - it-enterprise.cz
+  web-cz:
+    build:
+      context: ./apps/web-cz
+      dockerfile: Dockerfile
+    container_name: it-enterprise-web-cz
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:3000}
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-cz.rule=Host(`it-enterprise.cz`) || Host(`www.it-enterprise.cz`)"
+      - "traefik.http.routers.web-cz.entrypoints=websecure"
+      - "traefik.http.routers.web-cz.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web-cz.loadbalancer.server.port=3001"
+
+  # Web Solutions - it-enterprise.solutions
+  web-solutions:
+    build:
+      context: ./apps/web-solutions
+      dockerfile: Dockerfile
+    container_name: it-enterprise-web-solutions
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:3000}
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-solutions.rule=Host(`it-enterprise.solutions`) || Host(`www.it-enterprise.solutions`)"
+      - "traefik.http.routers.web-solutions.entrypoints=websecure"
+      - "traefik.http.routers.web-solutions.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web-solutions.loadbalancer.server.port=3002"
+
+  # Web Cloud - it-enterprise.cloud
+  web-cloud:
+    build:
+      context: ./apps/web-cloud
+      dockerfile: Dockerfile
+    container_name: it-enterprise-web-cloud
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:3000}
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-cloud.rule=Host(`it-enterprise.cloud`) || Host(`www.it-enterprise.cloud`)"
+      - "traefik.http.routers.web-cloud.entrypoints=websecure"
+      - "traefik.http.routers.web-cloud.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web-cloud.loadbalancer.server.port=3003"
+
+  # Web Pro - it-enterprise.pro
+  web-pro:
+    build:
+      context: ./apps/web-pro
+      dockerfile: Dockerfile
+    container_name: it-enterprise-web-pro
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:3000}
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-pro.rule=Host(`it-enterprise.pro`) || Host(`www.it-enterprise.pro`)"
+      - "traefik.http.routers.web-pro.entrypoints=websecure"
+      - "traefik.http.routers.web-pro.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web-pro.loadbalancer.server.port=3004"
+
+  # Web EU - it-enterprise.eu
+  web-eu:
+    build:
+      context: ./apps/web-eu
+      dockerfile: Dockerfile
+    container_name: it-enterprise-web-eu
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:3000}
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-eu.rule=Host(`it-enterprise.eu`) || Host(`www.it-enterprise.eu`)"
+      - "traefik.http.routers.web-eu.entrypoints=websecure"
+      - "traefik.http.routers.web-eu.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web-eu.loadbalancer.server.port=3005"
+
+  # Web CO.IL - it-enterprise.co.il
+  web-coil:
+    build:
+      context: ./apps/web-coil
+      dockerfile: Dockerfile
+    container_name: it-enterprise-web-coil
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:3000}
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-coil.rule=Host(`it-enterprise.co.il`) || Host(`www.it-enterprise.co.il`)"
+      - "traefik.http.routers.web-coil.entrypoints=websecure"
+      - "traefik.http.routers.web-coil.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web-coil.loadbalancer.server.port=3006"
+
+  # Web Biznesmen - biznesmen.cz
+  web-biznesmen:
+    build:
+      context: ./apps/web-biznesmen
+      dockerfile: Dockerfile
+    container_name: it-enterprise-web-biznesmen
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:3000}
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-biznesmen.rule=Host(`biznesmen.cz`) || Host(`www.biznesmen.cz`)"
+      - "traefik.http.routers.web-biznesmen.entrypoints=websecure"
+      - "traefik.http.routers.web-biznesmen.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web-biznesmen.loadbalancer.server.port=3007"
+
+  # Web Gazdaservice - gazdaservice.cz
+  web-gazdaservice:
+    build:
+      context: ./apps/web-gazdaservice
+      dockerfile: Dockerfile
+    container_name: it-enterprise-web-gazdaservice
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:3000}
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-gazdaservice.rule=Host(`gazdaservice.cz`) || Host(`www.gazdaservice.cz`)"
+      - "traefik.http.routers.web-gazdaservice.entrypoints=websecure"
+      - "traefik.http.routers.web-gazdaservice.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web-gazdaservice.loadbalancer.server.port=3008"
+
+  # Web Zman Kesef - zmankesef.cz
+  web-zmankesef:
+    build:
+      context: ./apps/web-zmankesef
+      dockerfile: Dockerfile
+    container_name: it-enterprise-web-zmankesef
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:3000}
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-zmankesef.rule=Host(`zmankesef.cz`) || Host(`www.zmankesef.cz`) || Host(`zman-kesef.eu`) || Host(`www.zman-kesef.eu`)"
+      - "traefik.http.routers.web-zmankesef.entrypoints=websecure"
+      - "traefik.http.routers.web-zmankesef.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web-zmankesef.loadbalancer.server.port=3009"
+
+  # Web Avoda - avoda.cz
+  web-avoda:
+    build:
+      context: ./apps/web-avoda
+      dockerfile: Dockerfile
+    container_name: it-enterprise-web-avoda
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:3000}
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-avoda.rule=Host(`avoda.cz`) || Host(`www.avoda.cz`)"
+      - "traefik.http.routers.web-avoda.entrypoints=websecure"
+      - "traefik.http.routers.web-avoda.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web-avoda.loadbalancer.server.port=3010"
+
+  # Web Bus Ticket - bus-ticket.info
+  web-busticket:
+    build:
+      context: ./apps/web-busticket
+      dockerfile: Dockerfile
+    container_name: it-enterprise-web-busticket
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api:3000}
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - it-enterprise-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-busticket.rule=Host(`bus-ticket.info`) || Host(`www.bus-ticket.info`)"
+      - "traefik.http.routers.web-busticket.entrypoints=websecure"
+      - "traefik.http.routers.web-busticket.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web-busticket.loadbalancer.server.port=3011"
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  it-enterprise-network:
+    driver: bridge
+

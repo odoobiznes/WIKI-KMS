@@ -1,0 +1,22 @@
+"use strict";
+/*
+ * ATTENTION: An "eval-source-map" devtool has been used.
+ * This devtool is neither made for production nor for readable output files.
+ * It uses "eval()" calls to create a separate source file with attached SourceMaps in the browser devtools.
+ * If you are trying to read the output file, select a different devtool (https://webpack.js.org/configuration/devtool/)
+ * or disable the default devtool with "devtool: false".
+ * If you are looking for production-ready output files, see mode: "production" (https://webpack.js.org/configuration/mode/).
+ */
+self["webpackHotUpdate_N_E"]("app/page",{
+
+/***/ "(app-pages-browser)/../../packages/i18n/locales/en.json":
+/*!*******************************************!*\
+  !*** ../../packages/i18n/locales/en.json ***!
+  \*******************************************/
+/***/ (function(module, __unused_webpack_exports, __webpack_require__) {
+
+module.exports = /*#__PURE__*/JSON.parse('{"common":{"nav":{"services":"Services","products":"Products","contact":"Contact","login":"Log in","signup":"Sign up","download":"Download"},"buttons":{"startFree":"Start for free","demo":"Demo","learnMore":"Learn more","getStarted":"Get started","contact":"Contact"},"footer":{"services":"Services","products":"Products","company":"Company","contact":"Contact","rights":"All rights reserved"}},"home":{"hero":{"title":"Modern solutions for","titleHighlight":"your business","description":"Comprehensive software for accounting, HR agenda and process automation. Utilize the power of AI and modern technologies."},"aiPlatforms":{"title":"Create anything with AI platforms","subtitle":"Choose from the best AI platforms and create exactly what you need","platforms":{"windsurf":"Windsurf","lovable":"Lovable","onespace":"OneSpace","cursor":"Cursor"},"options":{"web":{"title":"Create a website","description":"Professional websites with AI"},"app":{"title":"Create an app","description":"Mobile or web applications"},"businessPlan":{"title":"Plan your business project","description":"Complete business plan with AI assistance"},"course":{"title":"Create an online course","description":"Educational courses with AI support"},"images":{"title":"Generate images","description":"Images from templates and descriptions"},"video":{"title":"Generate video","description":"Videos from templates and descriptions"},"businessModel":{"title":"Design a business model","description":"Complete business model with AI"}}},"domains":{"title":"Third-level domains for your projects","description":"Get your own domain for your project, for example jan-czech.biznes.cz","examples":{"title":"Domain examples","list":["jan-czech.biznes.cz","my-project.business.eu.com","company.services.eu.com"]},"benefits":{"title":"Benefits","ssl":"Free SSL certificate","auto":"Automatic configuration","support":"24/7 support"}},"features":{"accounting":{"title":"Accounting systems","description":"Modern software for managing accounting and finances with AI assistant."},"hr":{"title":"HR agenda","description":"Complete solution for HR, payroll and employee management."},"ai":{"title":"AI Automation","description":"Automatic data processing and intelligent analysis."}}},"accounting":{"title":"Accounting and Finance","services":{"reports":{"title":"Reports with unique charts","description":"Create reports with charts that no one else does like this"},"documents":{"title":"Document loading via AI","description":"Automatic loading and processing of documents into calculations"},"businessPlan":{"title":"AI-based business plan creation","description":"Complete business plans created with AI"},"templates":{"title":"Templates to start","description":"Start with professional templates"}},"categories":{"finance":"Finance","administration":"Administration","accounting":"Accounting","management":"Management"}},"solutions":{"hero":{"title":"Software for","titleHighlight":"your business","description":"Complete product portfolio for automation and optimization of your business. Purchase, installation and updates in one place."},"products":{"title":"Our products","subtitle":"Choose from our software product portfolio","buy":"Buy","download":"Download"},"download":{"title":"Download center","subtitle":"Download our products and updates","sectionTitle":"Download our products","version":"Version"},"services":{"title":"Our services"}}}');
+
+/***/ })
+
+});

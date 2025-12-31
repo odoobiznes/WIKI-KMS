@@ -1,0 +1,19 @@
+id: "obj-bbf2b13c-3164-4949-8b54-d10365636a47"
+name: "odoo-integration-api"
+slug: "odoo-integration-api"
+category: "odoo"
+
+description: "odoo-integration-api project"
+status: "active"
+author: "Claude"
+created_at: "2025-12-29T19:17:03+01:00"
+updated_at: "2025-12-29T19:17:03+01:00"
+tags:
+  - "odoo"
+
+  - "example"
+default_folders:
+  - "plany"
+  - "instrukce"
+  - "code"
+  - "docs"

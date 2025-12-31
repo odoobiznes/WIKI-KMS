@@ -1,0 +1,94 @@
+
+> @it-enterprise/web-cz@1.0.0 dev
+> next dev -p 3001
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3001
+
+ ✓ Starting...
+ ✓ Ready in 2.3s
+ ○ Compiling / ...
+ ⨯ ./src/app/globals.css:1:1
+Syntax error: /opt/IT-Enterprise/apps/web-cz/src/app/globals.css The `border-border` class does not exist. If `border-border` is a custom class, make sure it is defined within a `@layer` directive.
+
+> 1 | @tailwind base;
+    | ^
+  2 | @tailwind components;
+  3 | @tailwind utilities;
+<w> [webpack.cache.PackFileCacheStrategy] Skipped not serializable cache item 'Compilation/modules|/opt/IT-Enterprise/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[12].use[2]!/opt/IT-Enterprise/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[12].use[3]!/opt/IT-Enterprise/apps/web-cz/src/app/globals.css': No serializer registered for PostCSSSyntaxError
+<w> while serializing webpack/lib/cache/PackFileCacheStrategy.PackContentItems -> webpack/lib/NormalModule -> webpack/lib/ModuleBuildError -> PostCSSSyntaxError
+ ⨯ ./src/app/globals.css:1:1
+Syntax error: /opt/IT-Enterprise/apps/web-cz/src/app/globals.css The `border-border` class does not exist. If `border-border` is a custom class, make sure it is defined within a `@layer` directive.
+
+> 1 | @tailwind base;
+    | ^
+  2 | @tailwind components;
+  3 | @tailwind utilities;
+ GET / 500 in 15477ms
+ GET / 500 in 26ms
+ GET / 500 in 17ms
+ GET / 500 in 14ms
+ ⨯ ./src/app/globals.css:1:1
+Syntax error: /opt/IT-Enterprise/apps/web-cz/src/app/globals.css The `border-border` class does not exist. If `border-border` is a custom class, make sure it is defined within a `@layer` directive.
+
+> 1 | @tailwind base;
+    | ^
+  2 | @tailwind components;
+  3 | @tailwind utilities;
+ GET / 500 in 66ms
+ GET / 500 in 22ms
+ GET / 500 in 14ms
+ GET / 500 in 13ms
+ GET / 500 in 15ms
+ ⨯ ./src/app/globals.css:1:1
+Syntax error: /opt/IT-Enterprise/apps/web-cz/src/app/globals.css The `bg-background` class does not exist. If `bg-background` is a custom class, make sure it is defined within a `@layer` directive.
+
+> 1 | @tailwind base;
+    | ^
+  2 | @tailwind components;
+  3 | @tailwind utilities;
+ GET / 500 in 10ms
+ GET / 500 in 21ms
+ GET / 500 in 14ms
+ GET / 500 in 31ms
+<w> [webpack.cache.PackFileCacheStrategy] Skipped not serializable cache item 'Compilation/modules|/opt/IT-Enterprise/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[12].use[2]!/opt/IT-Enterprise/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[12].use[3]!/opt/IT-Enterprise/apps/web-cz/src/app/globals.css': No serializer registered for PostCSSSyntaxError
+<w> while serializing webpack/lib/cache/PackFileCacheStrategy.PackContentItems -> webpack/lib/NormalModule -> webpack/lib/ModuleBuildError -> PostCSSSyntaxError
+ ✓ Compiled /_error in 1064ms (859 modules)
+ ○ Compiling /_not-found ...
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 200 in 597ms
+ ✓ Compiled /_not-found in 1419ms (848 modules)
+ GET / 200 in 58ms
+ GET / 200 in 31ms
+ GET / 200 in 43ms
+ GET / 200 in 41ms
+ ✓ Compiled in 888ms (862 modules)
+ GET / 200 in 238ms
+ GET / 200 in 48ms
+ GET / 200 in 44ms
+ ✓ Compiled in 1445ms (869 modules)
+ ✓ Compiled in 1482ms (865 modules)
+ ✓ Compiled in 642ms (869 modules)
+ GET / 200 in 141ms
+ GET / 200 in 41ms
+ ✓ Compiled in 709ms (855 modules)
+ ✓ Compiled in 846ms (869 modules)
+ ✓ Compiled in 561ms (869 modules)
+ ✓ Compiled in 494ms (869 modules)
+ ✓ Compiled in 458ms (869 modules)
+ GET / 200 in 166ms
+ ✓ Compiled in 1112ms (869 modules)
+ GET / 200 in 148ms
+ ✓ Compiled in 833ms (855 modules)
+ ✓ Compiled in 672ms (855 modules)
+ ✓ Compiled in 739ms (861 modules)
+ ✓ Compiled in 509ms (861 modules)
+ ✓ Compiled in 342ms (861 modules)
+ GET / 200 in 329ms
+ ✓ Compiled in 440ms (861 modules)
+ ✓ Compiled in 301ms (861 modules)
+ ✓ Compiled in 331ms (861 modules)
+ ✓ Compiled in 349ms (861 modules)
+ ✓ Compiled in 406ms (861 modules)
+ ✓ Compiled in 770ms (506 modules)
+ ✓ Compiled in 902ms (875 modules)

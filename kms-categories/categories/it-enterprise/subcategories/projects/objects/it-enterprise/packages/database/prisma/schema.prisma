@@ -1,0 +1,259 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum DomainStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum ProjectStatus {
+  DRAFT
+  BUILDING
+  READY
+  PUBLISHED
+  ERROR
+}
+
+enum ProjectTool {
+  WINDSURF
+  LOVABLE
+  ONESPACE
+  CURSOR
+}
+
+enum ContentType {
+  ARTICLE
+  SERVICE
+  PRODUCT
+  PARTNER
+  NEWS
+  FAQ
+  TESTIMONIAL
+  CASE_STUDY
+}
+
+enum BackupType {
+  DATABASE
+  FILES
+  CONFIG
+  FULL
+}
+
+enum BackupStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  role      Role     @default(USER)
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  projects  Project[]
+  domains   Domain[]
+  purchases Purchase[]
+  content   Content[]
+  backups   Backup[]
+  
+  @@index([email])
+  @@index([companyId])
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  domain      String?  @unique
+  website     String?
+  description String?  @db.Text
+  logo        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  users       User[]
+  content     Content[]
+  products    Product[]
+  
+  @@index([domain])
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String   @db.Text
+  price       Float
+  category    String
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  downloads   Download[]
+  purchases   Purchase[]
+  content     Content[]
+  
+  @@index([slug])
+  @@index([companyId])
+}
+
+model Domain {
+  id            String       @id @default(cuid())
+  subdomain     String
+  domain        String
+  fullDomain    String       @unique
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId    String?
+  project       Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  status        DomainStatus @default(PENDING)
+  nginxConfig   String?      @db.Text
+  traefikConfig String?      @db.Text
+  sslEnabled    Boolean      @default(false)
+  backupEnabled Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  
+  @@index([userId])
+  @@index([projectId])
+  @@index([fullDomain])
+  @@index([status])
+}
+
+model Project {
+  id        String        @id @default(cuid())
+  name      String
+  template  String?
+  config    Json
+  tool      ProjectTool
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  domains   Domain[]
+  status    ProjectStatus @default(DRAFT)
+  published Boolean       @default(false)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  
+  @@index([userId])
+  @@index([status])
+}
+
+model Content {
+  id          String      @id @default(cuid())
+  title       String
+  slug        String      @unique
+  type        ContentType
+  body        String      @db.Text
+  excerpt     String?    @db.Text
+  featured    Boolean     @default(false)
+  published   Boolean     @default(false)
+  publishedAt DateTime?
+  companyId   String?
+  company     Company?    @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  productId   String?
+  product     Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
+  authorId    String
+  author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  tags       Tag[]
+  categories Category[]
+  
+  @@index([slug])
+  @@index([type])
+  @@index([published])
+  @@index([companyId])
+  @@index([productId])
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  
+  content   Content[]
+  
+  @@index([slug])
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  
+  content   Content[]
+  
+  @@index([slug])
+}
+
+model Purchase {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product              Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  amount               Float
+  status               String   @default("pending")
+  stripePaymentIntentId String?  @unique
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([productId])
+  @@index([stripePaymentIntentId])
+}
+
+model Download {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  version   String
+  filePath  String
+  size      Int?
+  createdAt DateTime @default(now())
+  
+  @@index([productId])
+}
+
+model Backup {
+  id        String       @id @default(cuid())
+  type      BackupType
+  status    BackupStatus @default(PENDING)
+  size      Int?
+  path      String
+  userId    String?
+  user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime     @default(now())
+  expiresAt DateTime?
+  
+  @@index([status])
+  @@index([userId])
+}
+

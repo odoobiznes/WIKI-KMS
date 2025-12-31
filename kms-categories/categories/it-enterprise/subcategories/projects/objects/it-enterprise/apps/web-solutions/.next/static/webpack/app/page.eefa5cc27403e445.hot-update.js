@@ -1,0 +1,22 @@
+"use strict";
+/*
+ * ATTENTION: An "eval-source-map" devtool has been used.
+ * This devtool is neither made for production nor for readable output files.
+ * It uses "eval()" calls to create a separate source file with attached SourceMaps in the browser devtools.
+ * If you are trying to read the output file, select a different devtool (https://webpack.js.org/configuration/devtool/)
+ * or disable the default devtool with "devtool: false".
+ * If you are looking for production-ready output files, see mode: "production" (https://webpack.js.org/configuration/mode/).
+ */
+self["webpackHotUpdate_N_E"]("app/page",{
+
+/***/ "(app-pages-browser)/../../packages/i18n/locales/cs.json":
+/*!*******************************************!*\
+  !*** ../../packages/i18n/locales/cs.json ***!
+  \*******************************************/
+/***/ (function(module, __unused_webpack_exports, __webpack_require__) {
+
+module.exports = /*#__PURE__*/JSON.parse('{"common":{"nav":{"services":"Služby","products":"Produkty","contact":"Kontakt","login":"Přihlásit se","signup":"Registrovat se","download":"Download"},"buttons":{"startFree":"Začít zdarma","demo":"Ukázka","learnMore":"Zjistit více","getStarted":"Začít","contact":"Kontaktovat"},"footer":{"services":"Služby","products":"Produkty","company":"Společnost","contact":"Kontakt","rights":"Všechna práva vyhrazena"}},"home":{"hero":{"title":"Moderní řešení pro","titleHighlight":"váš byznys","description":"Komplexní software pro účetnictví, personální agendu a automatizaci procesů. Využijte sílu AI a moderních technologií."},"aiPlatforms":{"title":"Vytvořte si cokoliv pomocí AI platforem","subtitle":"Vyberte si z nejlepších AI platforem a vytvořte si přesně to, co potřebujete","platforms":{"windsurf":"Windsurf","lovable":"Lovable","onespace":"OneSpace","cursor":"Cursor"},"options":{"web":{"title":"Vytvořte si web","description":"Profesionální webové stránky pomocí AI"},"app":{"title":"Vytvořte si aplikaci","description":"Mobilní nebo webové aplikace"},"businessPlan":{"title":"Naplánujte si business projekt","description":"Kompletní business plán s AI asistencí"},"course":{"title":"Vytvořte si online kurz","description":"Vzdělávací kurzy s AI podporou"},"images":{"title":"Vygenerujte si obrázky","description":"Obrázky podle šablon a popisu"},"video":{"title":"Vygenerujte si video","description":"Videa podle šablon z popisu"},"businessModel":{"title":"Navrhněte si business model","description":"Kompletní business model s AI"}}},"domains":{"title":"Domény 3. úrovně pro vaše projekty","description":"Získejte vlastní doménu pro váš projekt, například jan-czech.biznes.cz","examples":{"title":"Příklady domén","list":["jan-czech.biznes.cz","muj-projekt.business.eu.com","firma.services.eu.com"]},"benefits":{"title":"Výhody","ssl":"SSL certifikát zdarma","auto":"Automatická konfigurace","support":"24/7 podpora"}},"features":{"accounting":{"title":"Účetní systémy","description":"Moderní software pro správu účetnictví a financí s AI asistentem."},"hr":{"title":"Personální agenda","description":"Kompletní řešení pro HR, mzdy a správu zaměstnanců."},"ai":{"title":"AI Automatizace","description":"Automatické zpracování dat a inteligentní analýzy."}}},"accounting":{"title":"Účetnictví a Finance","services":{"reports":{"title":"Výkazy s unikátními grafy","description":"Vytvořte si výkazy s grafy, které ještě nikdo tak nedělá"},"documents":{"title":"Načítání dokumentů přes AI","description":"Automatické načítání a zpracování dokumentů do výpočtů"},"businessPlan":{"title":"Vytvoření obchodních plánů na bázi AI","description":"Kompletní obchodní plány vytvořené pomocí AI"},"templates":{"title":"Šablony pro začátek","description":"Začněte s profesionálními šablonami"}},"categories":{"finance":"Finance","administration":"Administrace","accounting":"Účetnictví","management":"Management"}},"solutions":{"hero":{"title":"Software pro","titleHighlight":"váš byznys","description":"Kompletní portfolio produktů pro automatizaci a optimalizaci vašeho podnikání. Nákup, instalace a aktualizace na jednom místě."},"products":{"title":"Naše produkty","subtitle":"Vyberte si z našeho portfolia software produktů","buy":"Koupit","download":"Stáhnout"},"download":{"title":"Download centrum","subtitle":"Stáhněte si naše produkty a aktualizace","sectionTitle":"Stažte si naše produkty","version":"Verze"},"services":{"title":"Naše služby"}}}');
+
+/***/ })
+
+});

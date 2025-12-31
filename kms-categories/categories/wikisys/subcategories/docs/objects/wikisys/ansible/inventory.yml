@@ -1,0 +1,10 @@
+all:
+  hosts:
+    devsoft:
+      ansible_host: localhost
+      ansible_connection: local
+
+  children:
+    wikisys_servers:
+      hosts:
+        devsoft:

@@ -1,0 +1,6 @@
+slug: docs
+name: Dokumentace
+description: WikiSys dokumentace a pravidla
+is_active: true
+metadata:
+  icon: fa-book

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Enterprise Solutions - Software a služby</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        .price-card { transition: all 0.3s ease; }
+        .price-card:hover { transform: scale(1.05); }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="text-2xl font-bold text-blue-600">IT Enterprise</div>
+                    <span class="text-sm text-gray-500">Solutions</span>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#produkty" class="text-gray-700 hover:text-blue-600 transition">Produkty</a>
+                    <a href="#sluzby" class="text-gray-700 hover:text-blue-600 transition">Služby</a>
+                    <a href="#ceny" class="text-gray-700 hover:text-blue-600 transition">Ceny</a>
+                    <a href="#download" class="text-gray-700 hover:text-blue-600 transition">Download</a>
+                    <a href="#kontakt" class="text-gray-700 hover:text-blue-600 transition">Kontakt</a>
+                    <div class="relative">
+                        <button class="text-gray-700 hover:text-blue-600 transition">
+                            <i class="fas fa-globe"></i> CZ
+                        </button>
+                    </div>
+                </div>
+                <button class="md:hidden text-gray-700">
+                    <i class="fas fa-bars text-2xl"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="gradient-bg text-white py-20">
+        <div class="container mx-auto px-6">
+            <div class="text-center">
+                <h1 class="text-5xl font-bold mb-6">Software pro váš byznys</h1>
+                <p class="text-xl mb-8 opacity-90">Kompletní portfolio produktů pro automatizaci a optimalizaci vašeho podnikání</p>
+                <div class="flex justify-center space-x-4">
+                    <button class="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition">
+                        Prohlédnout produkty
+                    </button>
+                    <button class="border-2 border-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition">
+                        Konzultace zdarma
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Products Section -->
+    <section id="produkty" class="py-20">
+        <div class="container mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-16">Naše produkty</h2>
+            
+            <!-- Software Products -->
+            <div class="mb-16">
+                <h3 class="text-2xl font-bold mb-8 text-center">Software produkty</h3>
+                <div class="grid md:grid-cols-3 gap-8">
+                    <div class="bg-white rounded-xl shadow-lg overflow-hidden card-hover">
+                        <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6">
+                            <i class="fas fa-calculator text-4xl mb-4"></i>
+                            <h4 class="text-xl font-bold">IT Enterprise Accounting</h4>
+                        </div>
+                        <div class="p-6">
+                            <p class="text-gray-600 mb-4">Kompletní účetní systém s AI asistentem pro automatické zpracování dokladů.</p>
+                            <ul class="text-sm text-gray-600 mb-6 space-y-2">
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Automatické OCR dokladů</li>
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Daňové přiznání</li>
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Reporting a dashboard</li>
+                            </ul>
+                            <div class="flex justify-between items-center">
+                                <span class="text-2xl font-bold text-blue-600">990 Kč/měsíc</span>
+                                <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                                    Koupit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-lg overflow-hidden card-hover">
+                        <div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6">
+                            <i class="fas fa-users text-4xl mb-4"></i>
+                            <h4 class="text-xl font-bold">IT Enterprise HR</h4>
+                        </div>
+                        <div class="p-6">
+                            <p class="text-gray-600 mb-4">Moderní HR systém pro správu zaměstnanců a mezd.</p>
+                            <ul class="text-sm text-gray-600 mb-6 space-y-2">
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Mzdová účetnictví</li>
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Dovolená a absence</li>
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Výkazy a hodnocení</li>
+                            </ul>
+                            <div class="flex justify-between items-center">
+                                <span class="text-2xl font-bold text-purple-600">790 Kč/měsíc</span>
+                                <button class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition">
+                                    Koupit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-lg overflow-hidden card-hover">
+                        <div class="bg-gradient-to-r from-green-500 to-green-600 text-white p-6">
+                            <i class="fas fa-shopping-cart text-4xl mb-4"></i>
+                            <h4 class="text-xl font-bold">IT Enterprise E-commerce</h4>
+                        </div>
+                        <div class="p-6">
+                            <p class="text-gray-600 mb-4">Plnohodnotný e-commerce systém pro online prodej.</p>
+                            <ul class="text-sm text-gray-600 mb-6 space-y-2">
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Produktový katalog</li>
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Platební brány</li>
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Marketingové nástroje</li>
+                            </ul>
+                            <div class="flex justify-between items-center">
+                                <span class="text-2xl font-bold text-green-600">1290 Kč/měsíc</span>
+                                <button class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+                                    Koupit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Products -->
+            <div>
+                <h3 class="text-2xl font-bold mb-8 text-center">AI produkty</h3>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="bg-white rounded-xl shadow-lg overflow-hidden card-hover">
+                        <div class="bg-gradient-to-r from-red-500 to-orange-500 text-white p-6">
+                            <i class="fas fa-robot text-4xl mb-4"></i>
+                            <h4 class="text-xl font-bold">AI Data Processor</h4>
+                        </div>
+                        <div class="p-6">
+                            <p class="text-gray-600 mb-4">AI systém pro automatické zpracování a analýzu dat.</p>
+                            <ul class="text-sm text-gray-600 mb-6 space-y-2">
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Machine Learning modely</li>
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Prediktivní analýza</li>
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Automatizace procesů</li>
+                            </ul>
+                            <div class="flex justify-between items-center">
+                                <span class="text-2xl font-bold text-red-600">2490 Kč/měsíc</span>
+                                <button class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
+                                    Koupit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-lg overflow-hidden card-hover">
+                        <div class="bg-gradient-to-r from-indigo-500 to-indigo-600 text-white p-6">
+                            <i class="fas fa-brain text-4xl mb-4"></i>
+                            <h4 class="text-xl font-bold">AI Business Assistant</h4>
+                        </div>
+                        <div class="p-6">
+                            <p class="text-gray-600 mb-4">Inteligentní asistent pro podporu obchodních rozhodnutí.</p>
+                            <ul class="text-sm text-gray-600 mb-6 space-y-2">
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Chatbot pro zákazníky</li>
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Analýza trhu</li>
+                                <li><i class="fas fa-check text-green-500 mr-2"></i>Personalizované doporučení</li>
+                            </ul>
+                            <div class="flex justify-between items-center">
+                                <span class="text-2xl font-bold text-indigo-600">1890 Kč/měsíc</span>
+                                <button class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
+                                    Koupit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section id="sluzby" class="py-20 bg-gray-100">
+        <div class="container mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-16">Naše služby</h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-white rounded-lg p-6 text-center card-hover">
+                    <div class="text-blue-600 text-4xl mb-4">
+                        <i class="fas fa-code"></i>
+                    </div>
+                    <h3 class="font-bold mb-2">Vývoj software</h3>
+                    <p class="text-gray-600 text-sm">Custom vývoj na míru</p>
+                </div>
+                <div class="bg-white rounded-lg p-6 text-center card-hover">
+                    <div class="text-purple-600 text-4xl mb-4">
+                        <i class="fas fa-cogs"></i>
+                    </div>
+                    <h3 class="font-bold mb-2">Automatizace</h3>
+                    <p class="text-gray-600 text-sm">Procesní automatizace</p>
+                </div>
+                <div class="bg-white rounded-lg p-6 text-center card-hover">
+                    <div class="text-green-600 text-4xl mb-4">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h3 class="font-bold mb-2">Kyberbezpečnost</h3>
+                    <p class="text-gray-600 text-sm">Ochrana dat a systémů</p>
+                </div>
+                <div class="bg-white rounded-lg p-6 text-center card-hover">
+                    <div class="text-red-600 text-4xl mb-4">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3 class="font-bold mb-2">Konzultace</h3>
+                    <p class="text-gray-600 text-sm">IT a business poradenství</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Download Section -->
+    <section id="download" class="py-20">
+        <div class="container mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-16">Download centrum</h2>
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-white rounded-2xl shadow-xl p-8">
+                    <h3 class="text-2xl font-bold mb-6">Stažte si naše produkty</h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                            <div class="flex items-center">
+                                <i class="fas fa-download text-blue-600 mr-4"></i>
+                                <div>
+                                    <h4 class="font-bold">IT Enterprise Accounting</h4>
+                                    <p class="text-sm text-gray-600">Verze 2.1.0 | 125 MB</p>
+                                </div>
+                            </div>
+                            <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                                Stáhnout
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                            <div class="flex items-center">
+                                <i class="fas fa-download text-purple-600 mr-4"></i>
+                                <div>
+                                    <h4 class="font-bold">IT Enterprise HR</h4>
+                                    <p class="text-sm text-gray-600">Verze 1.8.5 | 98 MB</p>
+                                </div>
+                            </div>
+                            <button class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition">
+                                Stáhnout
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                            <div class="flex items-center">
+                                <i class="fas fa-download text-green-600 mr-4"></i>
+                                <div>
+                                    <h4 class="font-bold">IT Enterprise E-commerce</h4>
+                                    <p class="text-sm text-gray-600">Verze 3.2.1 | 156 MB</p>
+                                </div>
+                            </div>
+                            <button class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+                                Stáhnout
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="kontakt" class="py-20 bg-gray-100">
+        <div class="container mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4">Kontaktujte nás</h2>
+                <p class="text-xl text-gray-600">Máte dotazy k produktům? Rádi vám pomůžeme</p>
+            </div>
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-white rounded-2xl shadow-xl p-8">
+                    <form class="space-y-4">
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <input type="text" placeholder="Jméno" class="px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600">
+                            <input type="email" placeholder="Email" class="px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600">
+                        </div>
+                        <select class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600">
+                            <option>Vyberte produkt</option>
+                            <option>IT Enterprise Accounting</option>
+                            <option>IT Enterprise HR</option>
+                            <option>IT Enterprise E-commerce</option>
+                            <option>AI Data Processor</option>
+                            <option>AI Business Assistant</option>
+                        </select>
+                        <textarea placeholder="Zpráva" rows="4" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-600"></textarea>
+                        <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+                            Odeslat dotaz
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="container mx-auto px-6">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div>
+                    <h4 class="text-xl font-bold mb-4">IT Enterprise</h4>
+                    <p class="text-gray-400">Software a služby pro váš byznys</p>
+                </div>
+                <div>
+                    <h4 class="text-xl font-bold mb-4">Produkty</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white">Accounting</a></li>
+                        <li><a href="#" class="hover:text-white">HR</a></li>
+                        <li><a href="#" class="hover:text-white">E-commerce</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-xl font-bold mb-4">Podpora</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white">Download</a></li>
+                        <li><a href="#" class="hover:text-white">Dokumentace</a></li>
+                        <li><a href="#" class="hover:text-white">Kontakt</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-xl font-bold mb-4">Sledujte nás</h4>
+                    <div class="flex space-x-4">
+                        <a href="#" class="text-gray-400 hover:text-white"><i class="fab fa-facebook text-xl"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-white"><i class="fab fa-linkedin text-xl"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-white"><i class="fab fa-github text-xl"></i></a>
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2025 IT Enterprise Solutions. Všechna práva vyhrazena.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Form submission
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                alert('Děkujeme za váš dotaz. Brzy vás budeme kontaktovat.');
+                this.reset();
+            });
+        });
+    </script>
+</body>
+</html>

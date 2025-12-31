@@ -1,0 +1,165 @@
+{
+  "common": {
+    "welcome": "Bienvenue",
+    "login": "Connexion",
+    "register": "S'inscrire",
+    "logout": "Déconnexion",
+    "home": "Accueil",
+    "services": "Services",
+    "products": "Produits",
+    "contact": "Contact",
+    "language": "Langue"
+  },
+  "homepage": {
+    "title": "IT Enterprise - Solution moderne pour votre entreprise",
+    "subtitle": "Logiciel complet pour la comptabilité, les ressources humaines et l'automatisation des processus. Utilisez la puissance de l'IA et des technologies modernes.",
+    "cta": {
+      "startFree": "Commencer gratuitement",
+      "demo": "Démo"
+    },
+    "aiPlatforms": {
+      "title": "Créez n'importe quoi avec les plateformes IA",
+      "subtitle": "Choisissez parmi les meilleures plateformes IA et créez exactement ce dont vous avez besoin",
+      "windsurf": "Windsurf",
+      "lovable": "Lovable",
+      "onespace": "OneSpace",
+      "cursor": "Cursor",
+      "startButton": "Commencer →"
+    },
+    "features": {
+      "createWeb": {
+        "title": "Créer un site web",
+        "description": "Sites web professionnels avec l'IA"
+      },
+      "createApp": {
+        "title": "Créer une application",
+        "description": "Applications mobiles ou web"
+      },
+      "businessPlan": {
+        "title": "Planifier un projet d'entreprise",
+        "description": "Plan d'affaires complet avec l'aide de l'IA"
+      },
+      "onlineCourse": {
+        "title": "Créer un cours en ligne",
+        "description": "Cours éducatifs avec support IA (OpenAI, Claude, Lumo)"
+      },
+      "generateImages": {
+        "title": "Générer des images",
+        "description": "Images selon des modèles et descriptions"
+      },
+      "generateVideo": {
+        "title": "Générer une vidéo",
+        "description": "Vidéos selon des modèles à partir de descriptions"
+      },
+      "businessModel": {
+        "title": "Créer un modèle d'entreprise",
+        "description": "Modèle d'entreprise complet avec l'IA"
+      },
+      "createContent": {
+        "title": "Créer du contenu",
+        "description": "Textes, articles, documents avec l'IA"
+      }
+    },
+    "domains": {
+      "title": "Domaines de niveau 3 pour vos projets",
+      "subtitle": "Obtenez votre propre domaine pour votre projet. Par exemple, si vous êtes Jan Czech et voulez un projet \"Jan Czech\", vous pouvez lancer votre projet à l'adresse",
+      "availableDomains": "Domaines disponibles",
+      "check": "Vérifier →",
+      "benefits": {
+        "title": "Avantages",
+        "ssl": "Certificat SSL gratuit",
+        "sslDesc": "HTTPS automatique pour tous les domaines",
+        "autoConfig": "Configuration automatique",
+        "autoConfigDesc": "Configuration automatique de Nginx et Traefik",
+        "support": "Support 24/7",
+        "supportDesc": "Toujours là pour vous"
+      },
+      "getDomain": "Obtenir un domaine",
+      "examples": "Exemples de domaines:"
+    },
+    "features": {
+      "accounting": "Systèmes comptables",
+      "accountingDesc": "Logiciel moderne pour la gestion comptable et financière avec assistant IA.",
+      "hr": "Service du personnel",
+      "hrDesc": "Solution complète pour les RH, les salaires et la gestion des employés.",
+      "ai": "Automatisation IA",
+      "aiDesc": "Traitement automatique des données et analyses intelligentes."
+    },
+    "moreOptions": {
+      "title": "Et encore plus d'options...",
+      "documents": "Documents",
+      "documentsDesc": "Contrats, factures, rapports",
+      "design": "Design",
+      "designDesc": "Logos, cartes de visite, présentations",
+      "marketing": "Marketing",
+      "marketingDesc": "E-mails, publicités, campagnes"
+    }
+  },
+  "navigation": {
+    "services": "Services",
+    "aiPlatforms": "Plateformes IA",
+    "domains": "Domaines",
+    "contact": "Contact"
+  },
+  "footer": {
+    "services": {
+      "title": "Services",
+      "accounting": "Comptabilité",
+      "hr": "Ressources humaines",
+      "ai": "Solutions IA"
+    },
+    "products": {
+      "title": "Produits",
+      "aiPlatforms": "Plateformes IA",
+      "domains": "Domaines",
+      "cloud": "Cloud"
+    }
+  },
+  "solutions": {
+    "hero": {
+      "title": "Logiciel pour",
+      "titleHighlight": "votre entreprise",
+      "description": "Portfolio complet de produits pour l'automatisation et l'optimisation de votre entreprise. Achat, installation et mises à jour en un seul endroit."
+    },
+    "products": {
+      "title": "Nos produits",
+      "subtitle": "Choisissez parmi notre portefeuille de produits logiciels",
+      "buy": "Acheter",
+      "download": "Télécharger"
+    },
+    "download": {
+      "title": "Centre de téléchargement",
+      "subtitle": "Téléchargez nos produits et mises à jour",
+      "sectionTitle": "Téléchargez nos produits",
+      "version": "Version"
+    },
+    "services": {
+      "title": "Nos services"
+    }
+  },
+  "common": {
+    "nav": {
+      "services": "Services",
+      "products": "Produits",
+      "contact": "Contact",
+      "login": "Connexion",
+      "signup": "S'inscrire",
+      "download": "Télécharger"
+    },
+    "buttons": {
+      "startFree": "Commencer gratuitement",
+      "demo": "Démo",
+      "learnMore": "En savoir plus",
+      "getStarted": "Commencer",
+      "contact": "Contacter"
+    },
+    "footer": {
+      "services": "Services",
+      "products": "Produits",
+      "company": "Entreprise",
+      "contact": "Contact",
+      "rights": "Tous droits réservés"
+    }
+  }
+}
+

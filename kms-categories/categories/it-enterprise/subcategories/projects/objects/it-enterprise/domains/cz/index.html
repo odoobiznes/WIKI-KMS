@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Enterprise - Moderní řešení pro váš byznys</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="text-2xl font-bold text-purple-600">IT Enterprise</div>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#sluzby" class="text-gray-700 hover:text-purple-600 transition">Služby</a>
+                    <a href="#produkty" class="text-gray-700 hover:text-purple-600 transition">Produkty</a>
+                    <a href="#windsurf" class="text-gray-700 hover:text-purple-600 transition">Windsurf</a>
+                    <a href="#kontakt" class="text-gray-700 hover:text-purple-600 transition">Kontakt</a>
+                    <div class="relative">
+                        <button class="text-gray-700 hover:text-purple-600 transition">
+                            <i class="fas fa-globe"></i> CZ
+                        </button>
+                    </div>
+                </div>
+                <button class="md:hidden text-gray-700">
+                    <i class="fas fa-bars text-2xl"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="gradient-bg text-white py-20">
+        <div class="container mx-auto px-6">
+            <div class="flex flex-col md:flex-row items-center">
+                <div class="md:w-1/2 mb-10 md:mb-0">
+                    <h1 class="text-5xl font-bold mb-6">Moderní řešení pro váš byznys</h1>
+                    <p class="text-xl mb-8 opacity-90">Komplexní software pro účetnictví, personální agendu a automatizaci procesů. Využijte sílu AI a moderních technologií.</p>
+                    <div class="flex space-x-4">
+                        <button class="bg-white text-purple-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition">
+                            Začít zdarma
+                        </button>
+                        <button class="border-2 border-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-purple-600 transition">
+                            Ukázka
+                        </button>
+                    </div>
+                </div>
+                <div class="md:w-1/2">
+                    <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-8">
+                        <div class="text-center">
+                            <i class="fas fa-rocket text-6xl mb-4"></i>
+                            <h3 class="text-2xl font-bold mb-2">Rychlý start</h3>
+                            <p>Vytvořte si web během 5 minut</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section id="sluzby" class="py-20">
+        <div class="container mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-16">Naše služby</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-white rounded-xl p-8 shadow-lg card-hover">
+                    <div class="text-purple-600 text-4xl mb-4">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4">Účetní systémy</h3>
+                    <p class="text-gray-600 mb-4">Moderní software pro správu účetnictví a financí s AI asistentem.</p>
+                    <a href="#" class="text-purple-600 font-semibold hover:text-purple-700">Více informací →</a>
+                </div>
+                <div class="bg-white rounded-xl p-8 shadow-lg card-hover">
+                    <div class="text-purple-600 text-4xl mb-4">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4">Personální agenda</h3>
+                    <p class="text-gray-600 mb-4">Kompletní řešení pro HR, mzdy a správu zaměstnanců.</p>
+                    <a href="#" class="text-purple-600 font-semibold hover:text-purple-700">Více informací →</a>
+                </div>
+                <div class="bg-white rounded-xl p-8 shadow-lg card-hover">
+                    <div class="text-purple-600 text-4xl mb-4">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4">AI Automatizace</h3>
+                    <p class="text-gray-600 mb-4">Automatické zpracování dat a inteligentní analýzy.</p>
+                    <a href="#" class="text-purple-600 font-semibold hover:text-purple-700">Více informací →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Windsurf Section -->
+    <section id="windsurf" class="py-20 bg-gray-100">
+        <div class="container mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4">Windsurf Platform</h2>
+                <p class="text-xl text-gray-600">Vytvořte si web bez naší účasti</p>
+            </div>
+            <div class="bg-white rounded-2xl shadow-xl p-12">
+                <div class="grid md:grid-cols-2 gap-12 items-center">
+                    <div>
+                        <h3 class="text-3xl font-bold mb-6">Samostatné vytvoření webu</h3>
+                        <ul class="space-y-4 mb-8">
+                            <li class="flex items-center">
+                                <i class="fas fa-check text-green-500 mr-3"></i>
+                                <span>Výběr z profesionálních šablon</span>
+                            </li>
+                            <li class="flex items-center">
+                                <i class="fas fa-check text-green-500 mr-3"></i>
+                                <span>Integrace 3. úrovňových domén</span>
+                            </li>
+                            <li class="flex items-center">
+                                <i class="fas fa-check text-green-500 mr-3"></i>
+                                <span>Automatické nastavení nginx a traefik</span>
+                            </li>
+                            <li class="flex items-center">
+                                <i class="fas fa-check text-green-500 mr-3"></i>
+                                <span>SSL certifikáty zdarma</span>
+                            </li>
+                        </ul>
+                        <button class="bg-purple-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-purple-700 transition">
+                            Vyzkoušet Windsurf
+                        </button>
+                    </div>
+                    <div class="bg-gradient-to-br from-purple-100 to-blue-100 rounded-xl p-8">
+                        <div class="text-center">
+                            <i class="fas fa-wind text-6xl text-purple-600 mb-4"></i>
+                            <h4 class="text-2xl font-bold mb-2">Rychlost a jednoduchost</h4>
+                            <p class="text-gray-600">Web připraven během 5 minut</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Products Section -->
+    <section id="produkty" class="py-20">
+        <div class="container mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-16">Naše produkty</h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-white rounded-lg shadow-lg overflow-hidden card-hover">
+                    <div class="bg-purple-600 text-white p-4">
+                        <i class="fas fa-calculator text-3xl"></i>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-bold mb-2">Účetní software</h3>
+                        <p class="text-gray-600 text-sm mb-4">Kompletní účetnictví</p>
+                        <div class="text-purple-600 font-bold">od 990 Kč/měsíc</div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-lg overflow-hidden card-hover">
+                    <div class="bg-blue-600 text-white p-4">
+                        <i class="fas fa-user-tie text-3xl"></i>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-bold mb-2">HR systém</h3>
+                        <p class="text-gray-600 text-sm mb-4">Personální agenda</p>
+                        <div class="text-blue-600 font-bold">od 790 Kč/měsíc</div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-lg overflow-hidden card-hover">
+                    <div class="bg-green-600 text-white p-4">
+                        <i class="fas fa-shopping-cart text-3xl"></i>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-bold mb-2">E-commerce</h3>
+                        <p class="text-gray-600 text-sm mb-4">Online prodej</p>
+                        <div class="text-green-600 font-bold">od 1290 Kč/měsíc</div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-lg overflow-hidden card-hover">
+                    <div class="bg-red-600 text-white p-4">
+                        <i class="fas fa-chart-pie text-3xl"></i>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-bold mb-2">BI Dashboard</h3>
+                        <p class="text-gray-600 text-sm mb-4">Analýza dat</p>
+                        <div class="text-red-600 font-bold">od 590 Kč/měsíc</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="kontakt" class="py-20 bg-gray-100">
+        <div class="container mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold mb-4">Kontaktujte nás</h2>
+                <p class="text-xl text-gray-600">Máte dotazy? Rádi vám pomůžeme</p>
+            </div>
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-white rounded-2xl shadow-xl p-12">
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="text-2xl font-bold mb-6">Kontaktní informace</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center">
+                                    <i class="fas fa-phone text-purple-600 mr-4"></i>
+                                    <span>+420 608 958 313</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-envelope text-purple-600 mr-4"></i>
+                                    <span>office@it-enterprise.cz</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-map-marker-alt text-purple-600 mr-4"></i>
+                                    <span>Domanovická 2480, Praha 9</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-bold mb-6">Napište nám</h3>
+                            <form class="space-y-4">
+                                <input type="text" placeholder="Jméno" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-purple-600">
+                                <input type="email" placeholder="Email" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-purple-600">
+                                <textarea placeholder="Zpráva" rows="4" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-purple-600"></textarea>
+                                <button type="submit" class="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition">
+                                    Odeslat zprávu
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="container mx-auto px-6">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div>
+                    <h4 class="text-xl font-bold mb-4">IT Enterprise</h4>
+                    <p class="text-gray-400">Moderní software pro váš byznys</p>
+                </div>
+                <div>
+                    <h4 class="text-xl font-bold mb-4">Služby</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white">Účetnictví</a></li>
+                        <li><a href="#" class="hover:text-white">HR systémy</a></li>
+                        <li><a href="#" class="hover:text-white">AI řešení</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-xl font-bold mb-4">Produkty</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white">Windsurf</a></li>
+                        <li><a href="#" class="hover:text-white">Cloud</a></li>
+                        <li><a href="#" class="hover:text-white">E-commerce</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-xl font-bold mb-4">Sledujte nás</h4>
+                    <div class="flex space-x-4">
+                        <a href="#" class="text-gray-400 hover:text-white"><i class="fab fa-facebook text-xl"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-white"><i class="fab fa-linkedin text-xl"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-white"><i class="fab fa-instagram text-xl"></i></a>
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2025 IT Enterprise. Všechna práva vyhrazena.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Mobile menu toggle
+        const mobileMenuButton = document.querySelector('button.md\\:hidden');
+        const mobileMenu = document.querySelector('.hidden.md\\:flex');
+        
+        mobileMenuButton.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+        });
+    </script>
+</body>
+</html>

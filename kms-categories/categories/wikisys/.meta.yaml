@@ -1,0 +1,8 @@
+slug: wikisys
+name: WikiSys
+type: system
+description: WikiSys - Knowledge Base System s pravidly, procedurami a dokumentací
+is_active: true
+metadata:
+  icon: fa-book
+  base_path: /home/devops/.wikisys-local/
