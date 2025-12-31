@@ -1,0 +1,3882 @@
+// Check authentication on app load
+if (!API.getToken() && !window.location.pathname.includes('login.html')) {
+    window.location.href = '/login.html';
+}
+
+// Main Application
+const app = {
+    state: {
+        categories: [],
+        currentCategory: null,
+        currentObject: null,
+        currentFilter: 'all',
+        currentDocumentFilter: 'all',
+        documentView: 'list',
+        expandedCategories: {},
+        documents: [],
+        projectFolders: {}, // Store folder paths for each project
+        currentFolderPath: null, // Current folder path being viewed
+        currentFolderFiles: [], // Current folder files
+        projectFolderViewMode: 'tree' // 'tree' or 'list'
+    },
+
+    async init() {
+        console.log('KMS App initializing...');
+
+        // Initialize resizable sidebar
+        this.initResizableSidebar();
+
+        // Show loading state
+        const mainView = document.getElementById('main-view');
+        const categoriesTree = document.getElementById('categories-tree');
+
+        if (categoriesTree) {
+            categoriesTree.innerHTML = '<div class="text-center p-3"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+        }
+
+        try {
+            // Load user info
+            await this.loadUserInfo();
+
+            // Load data in parallel for faster startup
+            const [categories, stats, health] = await Promise.allSettled([
+                API.getCategories(),
+                API.getStats(),
+                API.getHealth()
+            ]);
+
+            // Process categories
+            if (categories.status === 'fulfilled') {
+                this.state.categories = categories.value;
+                Components.renderCategoriesTree(this.state.categories, this.state.currentFilter, this.state.expandedCategories);
+            } else {
+                console.error('Failed to load categories:', categories.reason);
+                const errorMsg = categories.reason?.message || categories.reason?.detail || 'Neznámá chyba';
+                console.error('Category load error details:', errorMsg);
+                if (categoriesTree) {
+                    categoriesTree.innerHTML = `<div class="text-center p-3 text-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Failed to load<br>
+                        <small style="color: #999;">${errorMsg}</small>
+                    </div>`;
+                }
+            }
+
+            // Process stats
+            if (stats.status === 'fulfilled') {
+                document.getElementById('stat-categories').textContent = stats.value.counts?.categories || 0;
+                document.getElementById('stat-objects').textContent = stats.value.counts?.objects || 0;
+                document.getElementById('stat-documents').textContent = stats.value.counts?.documents || 0;
+            }
+
+            // Process health
+            const statusEl = document.getElementById('sync-status');
+            if (health.status === 'fulfilled' && health.value.status === 'healthy') {
+                statusEl.innerHTML = '<i class="fas fa-circle"></i>';
+                statusEl.title = 'Healthy';
+            } else {
+                statusEl.innerHTML = '<i class="fas fa-circle" style="color: #e74c3c;"></i>';
+                statusEl.title = 'Unhealthy';
+            }
+
+            // Setup event listeners
+            this.setupEventListeners();
+
+            console.log('KMS App initialized successfully');
+        } catch (error) {
+            console.error('Initialization error:', error);
+            Components.showToast('Failed to initialize app', 'error');
+
+            if (mainView) {
+                mainView.innerHTML = `
+                    <div class="alert alert-danger m-4">
+                        <h4><i class="fas fa-exclamation-triangle"></i> Failed to Initialize</h4>
+                        <p>${error.message}</p>
+                        <button class="btn btn-primary" onclick="location.reload()">
+                            <i class="fas fa-redo"></i> Retry
+                        </button>
+                    </div>
+                `;
+            }
+        }
+    },
+
+    setupEventListeners() {
+        // Global search on Enter
+        document.getElementById('global-search').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.search();
+            }
+        });
+    },
+
+    initResizableSidebar() {
+        const handle = document.getElementById('sidebar-resize-handle');
+        const sidebar = document.getElementById('categories-sidebar');
+        if (!handle || !sidebar) return;
+
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+
+        handle.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = sidebar.offsetWidth;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const diff = e.clientX - startX;
+            const newWidth = Math.max(200, Math.min(800, startWidth + diff));
+            sidebar.style.width = newWidth + 'px';
+            // Save to localStorage
+            localStorage.setItem('sidebarWidth', newWidth);
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        });
+
+        // Restore saved width
+        const savedWidth = localStorage.getItem('sidebarWidth');
+        if (savedWidth) {
+            sidebar.style.width = savedWidth + 'px';
+        }
+    },
+
+    async loadCategories() {
+        try {
+            this.state.categories = await API.getCategories();
+            Components.renderCategoriesTree(this.state.categories, this.state.currentFilter, this.state.expandedCategories);
+        } catch (error) {
+            console.error('Error loading categories:', error);
+            Components.showToast('Failed to load categories', 'error');
+        }
+    },
+
+    async loadStats() {
+        try {
+            const stats = await API.getStats();
+            document.getElementById('stat-categories').textContent = stats.counts.categories || 0;
+            document.getElementById('stat-objects').textContent = stats.counts.objects || 0;
+            document.getElementById('stat-documents').textContent = stats.counts.documents || 0;
+        } catch (error) {
+            console.error('Error loading stats:', error);
+        }
+    },
+
+    async checkHealth() {
+        try {
+            const health = await API.getHealth();
+            const statusEl = document.getElementById('sync-status');
+            if (health.status === 'healthy') {
+                statusEl.innerHTML = '<i class="fas fa-circle"></i>';
+                statusEl.title = 'Healthy';
+            } else {
+                statusEl.innerHTML = '<i class="fas fa-circle" style="color: #e74c3c;"></i>';
+                statusEl.title = 'Unhealthy';
+            }
+        } catch (error) {
+            const statusEl = document.getElementById('sync-status');
+            statusEl.innerHTML = '<i class="fas fa-circle" style="color: #e74c3c;"></i>';
+            statusEl.title = 'Offline';
+        }
+    },
+
+    filterCategories(filter) {
+        this.state.currentFilter = filter;
+        Components.renderCategoriesTree(this.state.categories, filter, this.state.expandedCategories);
+
+        // Update filter label
+        const filterLabel = document.getElementById('filter-label');
+        if (filterLabel) {
+            filterLabel.textContent = filter === 'all' ? 'All' : filter.charAt(0).toUpperCase() + filter.slice(1);
+        }
+
+        // Update filter dropdown options
+        document.querySelectorAll('.filter-option').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.filter === filter) {
+                btn.classList.add('active');
+            }
+        });
+    },
+
+    toggleFilterDropdown() {
+        const dropdown = document.getElementById('filter-dropdown');
+        if (dropdown) {
+            const isVisible = dropdown.style.display !== 'none';
+            dropdown.style.display = isVisible ? 'none' : 'block';
+
+            // Close on outside click
+            if (!isVisible) {
+                setTimeout(() => {
+                    document.addEventListener('click', function closeFilter(e) {
+                        if (!dropdown.contains(e.target) && !e.target.closest('.filter-dropdown-btn')) {
+                            dropdown.style.display = 'none';
+                            document.removeEventListener('click', closeFilter);
+                        }
+                    });
+                }, 100);
+            }
+        }
+    },
+
+    async toggleCategory(categoryId) {
+        // Toggle expanded state
+        if (!this.state.expandedCategories) {
+            this.state.expandedCategories = {};
+        }
+
+        const wasExpanded = this.state.expandedCategories[categoryId];
+
+        // Close all other categories (accordion behavior - only one open at a time)
+        Object.keys(this.state.expandedCategories).forEach(id => {
+            if (id != categoryId && this.state.expandedCategories[id]) {
+                this.state.expandedCategories[id] = false;
+
+                // Update UI for closed category
+                const categoryItem = document.querySelector(`[data-category-id="${id}"]`);
+                if (categoryItem) {
+                    const expandIcon = categoryItem.querySelector('.tree-expand-icon');
+                    if (expandIcon) {
+                        expandIcon.className = 'fas fa-chevron-right tree-expand-icon';
+                    }
+                    const childrenDiv = categoryItem.querySelector(`[data-category-children="${id}"]`);
+                    if (childrenDiv) {
+                        childrenDiv.style.display = 'none';
+                    }
+                }
+            }
+        });
+
+        const isExpanded = !wasExpanded;
+        this.state.expandedCategories[categoryId] = isExpanded;
+
+        // Update icon
+        const categoryItem = document.querySelector(`[data-category-id="${categoryId}"]`);
+        if (categoryItem) {
+            const expandIcon = categoryItem.querySelector('.tree-expand-icon');
+            const childrenDiv = categoryItem.querySelector(`[data-category-children="${categoryId}"]`);
+
+            if (expandIcon) {
+                expandIcon.className = `fas fa-chevron-${isExpanded ? 'down' : 'right'} tree-expand-icon`;
+            }
+
+            if (childrenDiv) {
+                if (isExpanded) {
+                    childrenDiv.style.display = 'block';
+                    // Load subcategories and projects
+                    this.loadCategoryChildren(categoryId, childrenDiv);
+                } else {
+                    childrenDiv.style.display = 'none';
+                }
+            }
+        }
+    },
+
+    async loadCategoryChildren(categoryId, container) {
+        try {
+            container.innerHTML = '<div class="tree-loading">Loading...</div>';
+
+            const [subcategories, objects] = await Promise.all([
+                API.getSubcategories(categoryId).catch(() => []),
+                API.getObjects(categoryId).catch(() => [])
+            ]);
+
+            let html = '';
+
+            // Render subcategories
+            if (subcategories && subcategories.length > 0) {
+                subcategories.forEach(sub => {
+                    const icon = sub.icon || sub.metadata?.icon || 'fa-folder-open';
+                    const iconClass = icon.startsWith('fa-') ? `fas ${icon}` : icon;
+                    html += `
+                        <div class="tree-item subcategory-item" data-subcategory-id="${sub.id}">
+                            <div class="tree-item-content" onclick="app.toggleSubcategory(${sub.id})">
+                                <i class="fas fa-chevron-right tree-expand-icon"></i>
+                                <i class="${iconClass} tree-item-icon"></i>
+                                <span class="tree-item-label">${sub.name}</span>
+                                <div class="tree-item-actions" onclick="event.stopPropagation();">
+                                    <i class="fas fa-folder-plus tree-action-icon" onclick="app.createObjectInSubcategory(${sub.id}, ${categoryId})" title="Přidat projekt" style="color: #3498db;"></i>
+                                    <i class="fas fa-edit tree-action-icon" onclick="app.editSubcategory(${sub.id})" title="Edit"></i>
+                                    <i class="fas fa-trash tree-action-icon" onclick="app.deleteSubcategory(${sub.id})" title="Delete"></i>
+                                </div>
+                            </div>
+                            <div class="tree-children" data-subcategory-children="${sub.id}" style="display: none;">
+                                <div class="tree-loading">Loading...</div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Render projects directly in category
+            if (objects && objects.length > 0) {
+                objects.forEach(obj => {
+                    const icon = obj.icon || obj.metadata?.icon || 'fa-folder';
+                    const iconClass = icon.startsWith('fa-') ? `fas ${icon}` : icon;
+                    html += `
+                        <div class="tree-item project-item" data-project-id="${obj.id}" onclick="app.selectObject(${obj.id})">
+                            <div class="tree-item-content">
+                                <i class="${iconClass} tree-item-icon"></i>
+                                <span class="tree-item-label">${obj.object_name}</span>
+                                <div class="tree-item-actions" onclick="event.stopPropagation();">
+                                    <i class="fas fa-edit tree-action-icon" onclick="app.editProject(${obj.id})" title="Edit"></i>
+                                    <i class="fas fa-trash tree-action-icon" onclick="app.deleteProject(${obj.id})" title="Delete"></i>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            if (!html) {
+                html = '<div class="tree-empty">No items</div>';
+            }
+
+            container.innerHTML = html;
+        } catch (error) {
+            console.error('Error loading category children:', error);
+            container.innerHTML = '<div class="tree-error">Error loading</div>';
+        }
+    },
+
+    async toggleSubcategory(subcategoryId) {
+        const subcategoryItem = document.querySelector(`[data-subcategory-id="${subcategoryId}"]`);
+        if (subcategoryItem) {
+            const expandIcon = subcategoryItem.querySelector('.tree-expand-icon');
+            const childrenDiv = subcategoryItem.querySelector(`[data-subcategory-children="${subcategoryId}"]`);
+            const isExpanded = childrenDiv.style.display !== 'none';
+
+            if (expandIcon) {
+                expandIcon.className = `fas fa-chevron-${!isExpanded ? 'down' : 'right'} tree-expand-icon`;
+            }
+
+            if (childrenDiv) {
+                if (!isExpanded) {
+                    childrenDiv.style.display = 'block';
+                    // Load projects for this subcategory
+                    this.loadSubcategoryProjects(subcategoryId, childrenDiv);
+                } else {
+                    childrenDiv.style.display = 'none';
+                }
+            }
+        }
+    },
+
+    async loadSubcategoryProjects(subcategoryId, container) {
+        try {
+            container.innerHTML = '<div class="tree-loading">Loading...</div>';
+
+            const objects = await API.getObjects(null, subcategoryId).catch(() => []);
+
+            let html = '';
+            if (objects && objects.length > 0) {
+                objects.forEach(obj => {
+                    const icon = obj.icon || obj.metadata?.icon || 'fa-folder';
+                    const iconClass = icon.startsWith('fa-') ? `fas ${icon}` : icon;
+                    html += `
+                        <div class="tree-item project-item" data-project-id="${obj.id}"
+                             draggable="true"
+                             ondragstart="app.handleDragStart(event, ${obj.id}, 'project', ${obj.subcategory_id || 'null'})"
+                             ondragover="app.handleDragOver(event)"
+                             ondrop="app.handleDrop(event, ${obj.id}, 'project', ${obj.subcategory_id || 'null'})"
+                             ondragend="app.handleDragEnd(event)"
+                             onclick="app.selectObject(${obj.id})">
+                            <div class="tree-item-content">
+                                <i class="fas fa-grip-vertical tree-drag-handle" style="cursor: move; color: #95a5a6; margin-right: 0.25rem;"
+                                   ondragstart="event.stopPropagation();"
+                                   onclick="event.stopPropagation();"
+                                   title="Přetáhnout"></i>
+                                <i class="${iconClass} tree-item-icon"></i>
+                                <span class="tree-item-label">${obj.object_name}</span>
+                                <div class="tree-item-actions" onclick="event.stopPropagation();">
+                                    <i class="fas fa-edit tree-action-icon" onclick="app.editProject(${obj.id})" title="Edit"></i>
+                                    <i class="fas fa-trash tree-action-icon" onclick="app.deleteProject(${obj.id})" title="Delete"></i>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                html = '<div class="tree-empty">No projects</div>';
+            }
+
+            container.innerHTML = html;
+        } catch (error) {
+            console.error('Error loading subcategory projects:', error);
+            container.innerHTML = '<div class="tree-error">Error loading</div>';
+        }
+    },
+
+    async selectCategory(categoryId) {
+        // Expand category if not already expanded
+        if (!this.state.expandedCategories || !this.state.expandedCategories[categoryId]) {
+            await this.toggleCategory(categoryId);
+        }
+
+        // Highlight selected category
+        document.querySelectorAll('.tree-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        const categoryItem = document.querySelector(`[data-category-id="${categoryId}"]`);
+        if (categoryItem) {
+            categoryItem.classList.add('active');
+        }
+
+        // Show loading state
+        const mainView = document.getElementById('main-view');
+        if (mainView) {
+            mainView.innerHTML = `
+                <div class="text-center p-5">
+                    <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+                    <p class="mt-3">Loading category...</p>
+                </div>
+            `;
+        }
+
+        try {
+            // Get category details
+            const category = this.state.categories.find(c => c.id === categoryId);
+            this.state.currentCategory = category;
+
+            // Load objects for this category
+            const objects = await API.getObjects(categoryId);
+            Components.renderCategoryObjects(category, objects);
+        } catch (error) {
+            console.error('Error selecting category:', error);
+            Components.showToast('Failed to load category', 'error');
+            if (mainView) {
+                mainView.innerHTML = `
+                    <div class="alert alert-warning m-4">
+                        <h5><i class="fas fa-exclamation-triangle"></i> Failed to Load Category</h5>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+    },
+
+    async selectObject(objectId) {
+        // Show loading state
+        const mainView = document.getElementById('main-view');
+        if (mainView) {
+            mainView.innerHTML = `
+                <div class="text-center p-5">
+                    <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+                    <p class="mt-3">Loading object...</p>
+                </div>
+            `;
+        }
+
+        try {
+            const object = await API.getObject(objectId);
+            this.state.currentObject = object;
+
+            // Check if object has folder_path - if yes, show folder contents instead of documents
+            // Always use folder_path from metadata (most up-to-date), fallback to state, then to file_path
+            let folderPath = object.metadata && object.metadata.folder_path;
+
+            // If no folder_path in metadata, check stored state
+            if (!folderPath && this.state.projectFolders && this.state.projectFolders[objectId]) {
+                folderPath = this.state.projectFolders[objectId];
+            }
+
+            // Update state with current folder_path from metadata
+            if (folderPath) {
+                if (!this.state.projectFolders) {
+                    this.state.projectFolders = {};
+                }
+                this.state.projectFolders[objectId] = folderPath;
+            }
+
+            if (folderPath) {
+                // Show folder contents with tree view by default
+                const viewMode = this.state.projectFolderViewMode || 'tree';
+                await this.renderFolderContents(object, folderPath, viewMode);
+            } else {
+                // Show documents as before
+                const docsResponse = await API.getObjectDocuments(objectId);
+                this.state.documents = docsResponse.documents || [];
+                const viewMode = this.state.documentView || 'list';
+                Components.renderObjectView(object, this.state.documents, viewMode);
+            }
+
+            // Update view dropdown
+            setTimeout(() => {
+                const viewLabel = document.getElementById('document-view-label');
+                const viewBtn = document.querySelector('.document-view-dropdown-btn');
+                if (viewLabel && viewBtn) {
+                    const labels = {
+                        'tiles': 'Tiles',
+                        'list': 'List',
+                        'kanban': 'Kanban'
+                    };
+                    const icons = {
+                        'tiles': 'th',
+                        'list': 'list',
+                        'kanban': 'columns'
+                    };
+                    viewLabel.textContent = labels[viewMode] || 'Tiles';
+                    const iconEl = viewBtn.querySelector('i.fas');
+                    if (iconEl) {
+                        iconEl.className = `fas fa-${icons[viewMode] || 'th'}`;
+                    }
+                }
+                document.querySelectorAll('.document-view-option').forEach(btn => {
+                    btn.classList.remove('active');
+                    if (btn.dataset.view === viewMode) {
+                        btn.classList.add('active');
+                    }
+                });
+            }, 100);
+        } catch (error) {
+            console.error('Error selecting object:', error);
+            Components.showToast('Failed to load object', 'error');
+            if (mainView) {
+                mainView.innerHTML = `
+                    <div class="alert alert-danger m-4">
+                        <h5><i class="fas fa-exclamation-triangle"></i> Failed to Load Object</h5>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+    },
+
+    async viewDocument(documentId) {
+        try {
+            const [document, content] = await Promise.all([
+                API.getDocument(documentId),
+                API.getDocumentContent(documentId)
+            ]);
+
+            Components.renderDocumentViewer(document, content);
+        } catch (error) {
+            console.error('Error viewing document:', error);
+            Components.showToast('Failed to load document', 'error');
+        }
+    },
+
+    async saveDocument(documentId) {
+        try {
+            const textarea = document.getElementById('document-editor-textarea');
+            if (!textarea) {
+                Components.showToast('Editor not found', 'error');
+                return;
+            }
+
+            const content = textarea.value;
+            await API.updateDocument(documentId, { content: content });
+            Components.showToast('Document saved successfully', 'success');
+
+            // Reload document view
+            await this.viewDocument(documentId);
+        } catch (error) {
+            console.error('Error saving document:', error);
+            Components.showToast('Failed to save document', 'error');
+        }
+    },
+
+    async search() {
+        const query = document.getElementById('global-search').value.trim();
+        if (!query) {
+            Components.showToast('Please enter a search query', 'info');
+            return;
+        }
+
+        try {
+            const results = await API.search(query);
+            Components.renderSearchResults(query, results);
+        } catch (error) {
+            console.error('Search error:', error);
+            Components.showToast('Search failed', 'error');
+        }
+    },
+
+    // Modal management
+    showModal(content) {
+        const modal = document.getElementById('modal');
+        const modalBody = document.getElementById('modal-body');
+        modalBody.innerHTML = content;
+        modal.classList.add('show');
+    },
+
+    closeModal() {
+        const modal = document.getElementById('modal');
+        modal.classList.remove('show');
+    },
+
+    // Form handlers
+    createCategory() {
+        this.showModal(Components.categoryForm());
+    },
+
+    async submitCategoryForm(event, categoryId = null, editType = 'category') {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+
+        const type = formData.get('type');
+        const folderPath = formData.get('folder_path');
+        const isProject = editType === 'project' || type === 'project';
+
+        // Validate type change
+        if (categoryId && type) {
+            try {
+                const category = await API.getCategory(categoryId);
+                const currentType = category.type;
+                const isCurrentlyProject = category.metadata && category.metadata.folder_path;
+
+                // Check if type is changing
+                if ((currentType !== type) || (isCurrentlyProject !== isProject)) {
+                    // Check if category is empty
+                    const subcategories = await API.getSubcategories(categoryId).catch(() => []);
+                    let hasContent = subcategories && subcategories.length > 0;
+
+                    if (hasContent) {
+                        // Check projects in subcategories
+                        for (const sub of subcategories) {
+                            const objects = await API.getObjects(categoryId, sub.id).catch(() => []);
+                            if (objects && objects.length > 0) {
+                                hasContent = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (hasContent && isProject) {
+                        Components.showToast('Nelze změnit kategorii na projekt - obsahuje podkategorie nebo projekty', 'error');
+                        return;
+                    }
+
+                    // If converting project to category and project has content, move it to category
+                    if (isCurrentlyProject && !isProject && hasContent) {
+                        // This will be handled by backend - project will be moved to category
+                        Components.showToast('Projekt bude převeden na kategorii a jeho obsah bude přesunut', 'info');
+                    }
+                }
+            } catch (error) {
+                console.error('Error validating type change:', error);
+            }
+        }
+
+        const data = {
+            slug: formData.get('slug'),
+            name: formData.get('name'),
+            type: isProject ? 'project' : type,
+            description: formData.get('description') || '',
+            metadata: {}
+        };
+
+        // Add folder_path to metadata if it's a project
+        if (isProject && folderPath) {
+            data.metadata.folder_path = folderPath;
+        }
+
+        // Add icon to metadata
+        const icon = formData.get('icon');
+        if (icon) {
+            data.metadata.icon = icon;
+            data.icon = icon;
+        }
+
+        try {
+            if (categoryId) {
+                await API.updateCategory(categoryId, data);
+                Components.showToast(`${isProject ? 'Projekt' : 'Kategorie'} aktualizována`, 'success');
+            } else {
+                await API.createCategory(data);
+                Components.showToast(`${isProject ? 'Projekt' : 'Kategorie'} vytvořena`, 'success');
+            }
+            this.closeModal();
+            await this.loadCategories();
+            await this.loadStats();
+        } catch (error) {
+            console.error('Error saving category:', error);
+            Components.showToast(`Chyba při ${categoryId ? 'aktualizaci' : 'vytváření'} ${isProject ? 'projektu' : 'kategorie'}`, 'error');
+        }
+    },
+
+    handleEditTypeChange(currentType, categoryId, isEmpty) {
+        const select = document.getElementById('edit-type-select');
+        const newType = select.value;
+        const folderPathGroup = document.getElementById('folder-path-group');
+        const folderPathInput = folderPathGroup.querySelector('input[name="folder_path"]');
+        const typeSelect = document.getElementById('category-type-select');
+
+        if (newType === 'project') {
+            folderPathGroup.style.display = 'block';
+            if (folderPathInput) {
+                folderPathInput.required = true;
+            }
+            // Change type to project
+            if (typeSelect) {
+                typeSelect.value = 'project';
+            }
+        } else {
+            folderPathGroup.style.display = 'none';
+            if (folderPathInput) {
+                folderPathInput.required = false;
+            }
+            // Keep current type or default to product
+            if (typeSelect && !typeSelect.value || typeSelect.value === 'project') {
+                typeSelect.value = 'product';
+            }
+        }
+    },
+
+    async createObjectInCategory(categoryId) {
+        const formContent = await Components.objectForm(categoryId);
+        this.showModal(formContent);
+    },
+
+    async createSubcategoryInCategory(categoryId) {
+        const formContent = await Components.subcategoryForm(categoryId);
+        this.showModal(formContent);
+    },
+
+    async createObjectInSubcategory(subcategoryId, categoryId) {
+        // Create object in subcategory - we need to pass both categoryId and subcategoryId
+        const formContent = await Components.objectForm(categoryId, null, subcategoryId);
+        this.showModal(formContent);
+    },
+
+    async submitObjectForm(event, categoryId, objectId = null) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+
+        const name = formData.get('name');
+        const slug = formData.get('slug') || name.toLowerCase().replace(/\s+/g, '-');
+        const folderPath = formData.get('folder_path');
+
+        const isEdit = objectId !== null;
+
+        // Require folder path
+        if (!folderPath || folderPath.trim() === '') {
+            Components.showToast('Prosím zadej cestu ke složce projektu', 'error');
+            return;
+        }
+
+        const icon = formData.get('icon') || '';
+
+        const data = {
+            name: name,
+            slug: slug,
+            description: formData.get('description') || '',
+            status: formData.get('status') || 'active',
+            author: formData.get('author') || 'Unknown',
+            metadata: {
+                icon: icon || undefined,
+                folder_path: folderPath
+            }
+        };
+
+        // Add folder_path to metadata
+        if (folderPath) {
+            data.metadata.folder_path = folderPath;
+        }
+
+        // Also set icon directly if API supports it
+        if (icon) {
+            data.icon = icon;
+        }
+
+        // For new objects, try to determine subcategory from folder_path or form
+        if (!isEdit) {
+            const category = this.state.categories.find(c => c.id === categoryId);
+
+            // First check if subcategory_id is already selected in form (from createObjectInSubcategory)
+            let subcategoryId = formData.get('subcategory_id') || null;
+            if (subcategoryId && subcategoryId !== '') {
+                subcategoryId = parseInt(subcategoryId);
+            } else {
+                subcategoryId = null;
+            }
+
+            // If not found in form, try to find matching subcategory from folder_path
+            if (!subcategoryId && folderPath) {
+                // Extract potential subcategory name from path: /opt/kms/category/subcategory/...
+                const pathParts = folderPath.replace('/opt/kms/', '').split('/');
+                if (pathParts.length >= 2) {
+                    try {
+                        const subcategories = await API.getSubcategories(categoryId);
+                        const potentialSubcategorySlug = pathParts[1];
+                        const subcategory = subcategories.find(s => s.slug === potentialSubcategorySlug);
+                        if (subcategory) {
+                            subcategoryId = subcategory.id;
+                        }
+                    } catch (error) {
+                        console.error('Error loading subcategories:', error);
+                    }
+                }
+            }
+
+            // If we found a subcategory, use it; otherwise create without it
+            if (subcategoryId) {
+                data.category_id = categoryId;
+                data.subcategory_id = subcategoryId;
+                const subcategory = (await API.getSubcategories(categoryId)).find(s => s.id === subcategoryId);
+                if (subcategory && category) {
+                    data.file_path = `categories/${category.slug}/subcategories/${subcategory.slug}/objects/${slug}`;
+                }
+            } else {
+                // Create directly in category if no subcategory match
+                data.category_id = categoryId;
+                if (category) {
+                    data.file_path = `categories/${category.slug}/objects/${slug}`;
+                }
+            }
+        }
+
+        try {
+            if (isEdit) {
+                await API.updateObject(objectId, data);
+                Components.showToast('Project updated successfully', 'success');
+            } else {
+                await API.createObject(data);
+                Components.showToast('Project created successfully', 'success');
+            }
+            this.closeModal();
+
+            // Store folder_path in state for persistence
+            if (folderPath) {
+                if (!this.state.projectFolders) {
+                    this.state.projectFolders = {};
+                }
+                if (isEdit && objectId) {
+                    this.state.projectFolders[objectId] = folderPath;
+                }
+            }
+
+            // After creating/updating, stay on the object if it was being edited, otherwise reload category
+            if (isEdit && this.state.currentObject && this.state.currentObject.id === objectId) {
+                // Reload the current object to show updated folder_path
+                await this.selectObject(objectId);
+            } else if (isEdit && objectId) {
+                // If editing but not currently viewing, select the object
+                await this.selectObject(objectId);
+            } else if (this.state.currentCategory) {
+                await this.selectCategory(this.state.currentCategory.id);
+            } else if (categoryId) {
+                await this.selectCategory(categoryId);
+            }
+            await this.loadStats();
+        } catch (error) {
+            console.error(`Error ${isEdit ? 'updating' : 'creating'} object:`, error);
+            Components.showToast(`Failed to ${isEdit ? 'update' : 'create'} project`, 'error');
+        }
+    },
+
+    createDocument(objectId) {
+        const obj = this.state.currentObject;
+        if (!obj) {
+            Components.showToast('No project selected', 'error');
+            return;
+        }
+
+        const modal = document.getElementById('modal');
+        const modalBody = document.getElementById('modal-body');
+        modalBody.innerHTML = Components.renderDocumentCreateForm(objectId, obj.name);
+        modal.classList.add('show');
+
+        // Focus on filename input
+        setTimeout(() => {
+            const filenameInput = document.getElementById('doc-filename');
+            if (filenameInput) filenameInput.focus();
+        }, 100);
+    },
+
+    async editDocumentMetadata(documentId) {
+        try {
+            const document = await API.getDocument(documentId);
+            const obj = this.state.currentObject;
+            if (!obj) {
+                Components.showToast('No project selected', 'error');
+                return;
+            }
+
+            const modal = document.getElementById('modal');
+            const modalBody = document.getElementById('modal-body');
+            modalBody.innerHTML = Components.renderDocumentCreateForm(obj.id, obj.name, document);
+            modal.classList.add('show');
+        } catch (error) {
+            console.error('Error loading document for edit:', error);
+            Components.showToast('Failed to load document', 'error');
+        }
+    },
+
+    async submitDocumentCreate(objectId, documentId = null) {
+        const form = document.getElementById('document-create-form');
+        if (!form) return;
+
+        const formData = new FormData(form);
+        const folder = formData.get('folder');
+        const filename = formData.get('filename')?.trim();
+        const content = formData.get('content') || '';
+        const icon = formData.get('icon') || '';
+
+        const isEdit = documentId !== null;
+
+        if (!isEdit) {
+            if (!filename) {
+                Components.showToast('Filename is required', 'error');
+                return;
+            }
+
+            // Validate filename
+            if (!/^[a-zA-Z0-9._-]+$/.test(filename)) {
+                Components.showToast('Invalid filename. Use only letters, numbers, dots, dashes and underscores', 'error');
+                return;
+            }
+        }
+
+        try {
+            if (isEdit) {
+                // Update document metadata
+                const updateData = {
+                    metadata: {
+                        icon: icon || undefined
+                    }
+                };
+                if (filename) {
+                    updateData.filename = filename;
+                }
+                await API.updateDocument(documentId, updateData);
+                Components.showToast('Document updated successfully', 'success');
+            } else {
+                // Generate filepath (will be synced by daemon)
+                const obj = this.state.currentObject;
+                // Use file_path from object (it already contains the full path to object directory)
+                const basePath = obj.file_path || (obj.subcategory_slug
+                    ? `categories/${obj.category_slug || 'unknown'}/subcategories/${obj.subcategory_slug}/objects/${obj.object_slug || obj.slug || 'unknown'}`
+                    : `categories/${obj.category_slug || 'unknown'}/objects/${obj.object_slug || obj.slug || 'unknown'}`);
+                const filepath = `${basePath}/${folder}/${filename}`;
+
+                const newDoc = await API.createDocument({
+                    object_id: objectId,
+                    folder: folder,
+                    filename: filename,
+                    filepath: filepath,
+                    content: content,
+                    content_type: 'text/plain',
+                    metadata: {
+                        icon: icon || undefined
+                    }
+                });
+                Components.showToast('Document created successfully', 'success');
+            }
+
+            this.closeModal();
+
+            // Reload object view to show updated document
+            await this.selectObject(objectId);
+        } catch (error) {
+            console.error(`Error ${isEdit ? 'updating' : 'creating'} document:`, error);
+            Components.showToast(`Failed to ${isEdit ? 'update' : 'create'} document`, 'error');
+        }
+    },
+
+    async deleteDocument(documentId) {
+        if (!confirm('Opravdu chceš smazat tento dokument?')) {
+            return;
+        }
+
+        try {
+            await API.deleteDocument(documentId);
+            Components.showToast('Dokument smazán', 'success');
+
+            // Reload current object view
+            if (this.state.currentObject) {
+                await this.selectObject(this.state.currentObject.id);
+            }
+        } catch (error) {
+            console.error('Error deleting document:', error);
+            Components.showToast('Chyba při mazání dokumentu', 'error');
+        }
+    },
+
+    async editDocument(documentId) {
+        try {
+            const [document, content] = await Promise.all([
+                API.getDocument(documentId),
+                API.getDocumentContent(documentId)
+            ]);
+
+            Components.renderDocumentEditor(document, content);
+        } catch (error) {
+            console.error('Error loading document for edit:', error);
+            Components.showToast('Failed to load document', 'error');
+        }
+    },
+
+    async refresh() {
+        Components.showToast('Refreshing...', 'info');
+        await Promise.all([
+            this.loadCategories(),
+            this.loadStats(),
+            this.checkHealth()
+        ]);
+        Components.showToast('Refreshed successfully', 'success');
+    },
+
+    // Edit/Delete functions
+    async editCategory(categoryId) {
+        try {
+            const category = await API.getCategory(categoryId);
+            const formContent = await Components.categoryForm(category);
+            this.showModal(formContent);
+        } catch (error) {
+            console.error('Error loading category for edit:', error);
+            Components.showToast('Failed to load category', 'error');
+        }
+    },
+
+    async deleteCategory(categoryId) {
+        if (!confirm('Opravdu chceš smazat tuto kategorii? Všechny projekty v této kategorii budou také smazány.')) {
+            return;
+        }
+
+        try {
+            await API.deleteCategory(categoryId);
+            Components.showToast('Kategorie smazána', 'success');
+            await this.loadCategories();
+            await this.loadStats();
+
+            // Clear main view if deleted category was selected
+            if (this.state.currentCategory && this.state.currentCategory.id === categoryId) {
+                document.getElementById('main-view').innerHTML = Components.welcomeScreen();
+                this.state.currentCategory = null;
+            }
+        } catch (error) {
+            console.error('Error deleting category:', error);
+            Components.showToast('Chyba při mazání kategorie', 'error');
+        }
+    },
+
+    async editSubcategory(subcategoryId) {
+        try {
+            const subcategory = await API.getSubcategory(subcategoryId);
+            const categoryId = subcategory.category_id;
+            const formContent = await Components.subcategoryForm(categoryId, subcategory);
+            this.showModal(formContent);
+        } catch (error) {
+            console.error('Error loading subcategory for edit:', error);
+            Components.showToast('Failed to load subcategory', 'error');
+        }
+    },
+
+    async deleteSubcategory(subcategoryId) {
+        if (!confirm('Opravdu chceš smazat tuto podkategorii? Pokud obsahuje projekty, musíš je nejdříve smazat nebo přesunout.')) {
+            return;
+        }
+
+        try {
+            await API.deleteSubcategory(subcategoryId);
+            Components.showToast('Podkategorie smazána', 'success');
+
+            // Reload categories to refresh tree
+            await this.loadCategories();
+            await this.loadStats();
+        } catch (error) {
+            console.error('Error deleting subcategory:', error);
+            const errorMessage = error.message || 'Chyba při mazání podkategorie';
+            Components.showToast(errorMessage, 'error');
+        }
+    },
+
+    async submitSubcategoryForm(event, categoryId, subcategoryId = null, editType = 'subcategory') {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+
+        const name = formData.get('name');
+        const slug = formData.get('slug') || name.toLowerCase().replace(/\s+/g, '-');
+        const icon = formData.get('icon') || '';
+        const folderPath = formData.get('folder_path');
+        const isProject = editType === 'project';
+
+        // Validate type change
+        if (subcategoryId && isProject) {
+            try {
+                const subcategory = await API.getSubcategory(subcategoryId);
+                const isCurrentlyProject = subcategory.metadata && subcategory.metadata.folder_path;
+
+                // Check if type is changing
+                if (!isCurrentlyProject) {
+                    // Check if subcategory is empty
+                    const objects = await API.getObjects(categoryId, subcategoryId).catch(() => []);
+                    const hasContent = objects && objects.length > 0;
+
+                    if (hasContent) {
+                        Components.showToast('Nelze změnit podkategorii na projekt - obsahuje projekty', 'error');
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error('Error validating type change:', error);
+            }
+        }
+
+        const data = {
+            category_id: categoryId,
+            slug: slug,
+            name: name,
+            description: formData.get('description') || '',
+            metadata: {}
+        };
+
+        // Add folder_path to metadata if it's a project
+        if (isProject && folderPath) {
+            data.metadata.folder_path = folderPath;
+        }
+
+        // Add icon to metadata
+        if (icon) {
+            data.metadata.icon = icon;
+            data.icon = icon;
+        }
+
+        try {
+            if (subcategoryId) {
+                await API.updateSubcategory(subcategoryId, data);
+                Components.showToast(`${isProject ? 'Projekt' : 'Podkategorie'} aktualizována`, 'success');
+            } else {
+                await API.createSubcategory(data);
+                Components.showToast(`${isProject ? 'Projekt' : 'Podkategorie'} vytvořena`, 'success');
+            }
+            this.closeModal();
+            await this.loadCategories();
+            await this.loadStats();
+        } catch (error) {
+            console.error(`Error ${subcategoryId ? 'updating' : 'creating'} subcategory:`, error);
+            Components.showToast(`Chyba při ${subcategoryId ? 'aktualizaci' : 'vytváření'} ${isProject ? 'projektu' : 'podkategorie'}`, 'error');
+        }
+    },
+
+    handleEditTypeChangeSubcategory(currentType, subcategoryId, isEmpty) {
+        const select = document.getElementById('edit-type-select-subcategory');
+        const newType = select.value;
+        const folderPathGroup = document.getElementById('folder-path-group-subcategory');
+        const folderPathInput = folderPathGroup.querySelector('input[name="folder_path"]');
+
+        if (newType === 'project') {
+            folderPathGroup.style.display = 'block';
+            if (folderPathInput) {
+                folderPathInput.required = true;
+            }
+        } else {
+            folderPathGroup.style.display = 'none';
+            if (folderPathInput) {
+                folderPathInput.required = false;
+            }
+        }
+    },
+
+    async editProject(projectId) {
+        try {
+            const object = await API.getObject(projectId);
+            const categoryId = object.category_id;
+
+            // Ensure metadata is an object (might be string from DB)
+            if (!object.metadata || typeof object.metadata === 'string') {
+                try {
+                    object.metadata = typeof object.metadata === 'string' ? JSON.parse(object.metadata) : {};
+                } catch (e) {
+                    object.metadata = {};
+                }
+            }
+
+            // Load folder_path from state if available, otherwise from metadata
+            if (this.state.projectFolders && this.state.projectFolders[projectId]) {
+                object.metadata.folder_path = this.state.projectFolders[projectId];
+            } else if (object.metadata && object.metadata.folder_path) {
+                // Store in state for future use
+                if (!this.state.projectFolders) {
+                    this.state.projectFolders = {};
+                }
+                this.state.projectFolders[projectId] = object.metadata.folder_path;
+            }
+
+            const formContent = await Components.objectForm(categoryId, object);
+            this.showModal(formContent);
+        } catch (error) {
+            console.error('Error loading project for edit:', error);
+            Components.showToast('Failed to load project', 'error');
+        }
+    },
+
+    async deleteProject(projectId) {
+        if (confirm('Opravdu chceš smazat tento projekt?')) {
+            try {
+                await API.deleteObject(projectId);
+                Components.showToast('Projekt smazán', 'success');
+                // Reload current view
+                if (this.state.currentCategory) {
+                    await this.selectCategory(this.state.currentCategory.id);
+                } else {
+                    await this.init();
+                }
+            } catch (error) {
+                console.error('Error deleting project:', error);
+                Components.showToast('Chyba při mazání projektu', 'error');
+            }
+        }
+    },
+
+    toggleObjectInfo(objectId) {
+        const dropdown = document.getElementById(`object-info-dropdown-${objectId}`);
+        if (dropdown) {
+            const isVisible = dropdown.style.display !== 'none';
+            dropdown.style.display = isVisible ? 'none' : 'block';
+
+            // Close on outside click
+            if (!isVisible) {
+                setTimeout(() => {
+                    document.addEventListener('click', function closeInfo(e) {
+                        if (!dropdown.contains(e.target) && !e.target.closest('.object-info-btn')) {
+                            dropdown.style.display = 'none';
+                            document.removeEventListener('click', closeInfo);
+                        }
+                    });
+                }, 100);
+            }
+        }
+    },
+
+    toggleDocumentFilterDropdown() {
+        const dropdown = document.getElementById('document-filter-dropdown');
+        if (dropdown) {
+            const isVisible = dropdown.style.display !== 'none';
+            dropdown.style.display = isVisible ? 'none' : 'block';
+
+            // Close on outside click
+            if (!isVisible) {
+                setTimeout(() => {
+                    document.addEventListener('click', function closeFilter(e) {
+                        if (!dropdown.contains(e.target) && !e.target.closest('.document-filter-dropdown-btn')) {
+                            dropdown.style.display = 'none';
+                            document.removeEventListener('click', closeFilter);
+                        }
+                    });
+                }, 100);
+            }
+        }
+    },
+
+    filterDocuments(filter) {
+        this.state.currentDocumentFilter = filter;
+
+        // Update filter label
+        const filterLabel = document.getElementById('document-filter-label');
+        if (filterLabel) {
+            const labels = {
+                'all': 'All',
+                'doc': 'Doc',
+                'code': 'Code',
+                'plany': 'Plany',
+                'instrukce': 'Instrukce'
+            };
+            filterLabel.textContent = labels[filter] || 'All';
+        }
+
+        // Update filter dropdown options
+        document.querySelectorAll('.document-filter-option').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.filter === filter) {
+                btn.classList.add('active');
+            }
+        });
+
+        // Re-render documents with filter
+        this.applyDocumentFilter();
+    },
+
+    setDocumentView(view) {
+        this.state.documentView = view;
+
+        // Update view dropdown label and icon
+        const viewLabel = document.getElementById('document-view-label');
+        const viewBtn = document.querySelector('.document-view-dropdown-btn');
+        if (viewLabel && viewBtn) {
+            const labels = {
+                'tiles': 'Tiles',
+                'list': 'List',
+                'kanban': 'Kanban'
+            };
+            const icons = {
+                'tiles': 'th',
+                'list': 'list',
+                'kanban': 'columns'
+            };
+            viewLabel.textContent = labels[view] || 'Tiles';
+            const iconEl = viewBtn.querySelector('i.fas');
+            if (iconEl) {
+                iconEl.className = `fas fa-${icons[view] || 'th'}`;
+            }
+        }
+
+        // Update view dropdown options
+        document.querySelectorAll('.document-view-option').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.view === view) {
+                btn.classList.add('active');
+            }
+        });
+
+        // Re-render documents with new view
+        if (this.state.currentObject) {
+            const documents = this.state.documents || [];
+            const filteredDocs = this.getFilteredDocuments(documents);
+            const container = document.getElementById('documents-container');
+            if (container) {
+                container.innerHTML = Components.renderDocuments(filteredDocs, view);
+            }
+        }
+    },
+
+    toggleDocumentViewDropdown() {
+        const dropdown = document.getElementById('document-view-dropdown');
+        if (dropdown) {
+            const isVisible = dropdown.style.display !== 'none';
+            dropdown.style.display = isVisible ? 'none' : 'block';
+
+            // Close on outside click
+            if (!isVisible) {
+                setTimeout(() => {
+                    document.addEventListener('click', function closeView(e) {
+                        if (!dropdown.contains(e.target) && !e.target.closest('.document-view-dropdown-btn')) {
+                            dropdown.style.display = 'none';
+                            document.removeEventListener('click', closeView);
+                        }
+                    });
+                }, 100);
+            }
+        }
+    },
+
+    toggleToolsDropdown() {
+        const dropdown = document.getElementById('tools-dropdown');
+        if (dropdown) {
+            const isVisible = dropdown.style.display !== 'none';
+            dropdown.style.display = isVisible ? 'none' : 'block';
+
+            // Update content when opening
+            if (!isVisible) {
+                dropdown.innerHTML = Components.renderToolsDropdown(this.state.currentObject);
+
+                // Close on outside click
+                setTimeout(() => {
+                    document.addEventListener('click', function closeTools(e) {
+                        if (!dropdown.contains(e.target) && !e.target.closest('#tools-toggle-btn')) {
+                            dropdown.style.display = 'none';
+                            document.removeEventListener('click', closeTools);
+                        }
+                    });
+                }, 100);
+            }
+        }
+    },
+
+    getFilteredDocuments(documents) {
+        const filter = this.state.currentDocumentFilter;
+        if (filter === 'all') {
+            return documents;
+        }
+        return documents.filter(doc => {
+            const folder = (doc.folder || '').toLowerCase();
+            return folder.includes(filter);
+        });
+    },
+
+    applyDocumentFilter() {
+        if (this.state.currentObject) {
+            const documents = this.state.documents || [];
+            const filteredDocs = this.getFilteredDocuments(documents);
+            const viewMode = this.state.documentView || 'list';
+            const container = document.getElementById('documents-container');
+            if (container) {
+                container.innerHTML = Components.renderDocuments(filteredDocs, viewMode);
+            }
+        }
+    },
+
+    async loadUserInfo() {
+        try {
+            // Check if we have a valid token first
+            const token = API.getToken();
+            if (!token) {
+                console.warn('No token found, redirecting to login');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            const user = await API.request('/auth/me');
+            const userNameEl = document.getElementById('userName');
+            if (userNameEl) {
+                userNameEl.textContent = user.username || user.email || 'User';
+            }
+        } catch (error) {
+            console.error('Failed to load user info:', error);
+            // If 401, token is invalid - redirect to login
+            if (error.status === 401 || error.message?.includes('Session expired') || error.message?.includes('Unauthorized')) {
+                console.warn('Token invalid, redirecting to login');
+                API.logout();
+                window.location.href = '/login.html';
+            }
+        }
+    },
+
+    toggleUserMenu() {
+        const dropdown = document.getElementById('userMenuDropdown');
+        if (dropdown) {
+            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+        }
+    },
+
+    async logout() {
+        try {
+            await API.request('/auth/logout', { method: 'POST' });
+        } catch (error) {
+            console.error('Logout error:', error);
+        } finally {
+            API.logout();
+        }
+    },
+
+    async showChangePassword() {
+        // Create modal dialog
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-dialog" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-key"></i> Změnit heslo</h3>
+                    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="changePasswordForm">
+                        <div class="form-group">
+                            <label for="oldPassword">Současné heslo:</label>
+                            <input type="password" id="oldPassword" required autocomplete="current-password">
+                        </div>
+                        <div class="form-group">
+                            <label for="newPassword">Nové heslo:</label>
+                            <input type="password" id="newPassword" required autocomplete="new-password" minlength="6">
+                            <small class="form-text">Minimálně 6 znaků</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmPassword">Potvrďte nové heslo:</label>
+                            <input type="password" id="confirmPassword" required autocomplete="new-password" minlength="6">
+                        </div>
+                        <div id="changePasswordError" class="error-message" style="display: none;"></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">
+                        Zrušit
+                    </button>
+                    <button type="button" class="btn btn-primary" id="changePasswordSubmit">
+                        <i class="fas fa-save"></i> Změnit heslo
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        this.toggleUserMenu(); // Close user menu
+
+        // Handle form submission
+        const form = modal.querySelector('#changePasswordForm');
+        const submitBtn = modal.querySelector('#changePasswordSubmit');
+        const errorDiv = modal.querySelector('#changePasswordError');
+
+        const handleSubmit = async () => {
+            const oldPassword = modal.querySelector('#oldPassword').value;
+            const newPassword = modal.querySelector('#newPassword').value;
+            const confirmPassword = modal.querySelector('#confirmPassword').value;
+
+            // Clear previous errors
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
+
+            // Validation
+            if (!oldPassword || !newPassword || !confirmPassword) {
+                errorDiv.textContent = 'Vyplňte všechna pole';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                errorDiv.textContent = 'Hesla se neshodují!';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                errorDiv.textContent = 'Heslo musí mít alespoň 6 znaků!';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Disable submit button
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ukládání...';
+
+            try {
+                await API.request('/auth/change-password', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        old_password: oldPassword,
+                        new_password: newPassword
+                    })
+                });
+
+                // Success
+                modal.querySelector('.modal-body').innerHTML = `
+                    <div class="text-center p-4">
+                        <i class="fas fa-check-circle" style="font-size: 48px; color: #28a745;"></i>
+                        <h4 class="mt-3">Heslo bylo úspěšně změněno!</h4>
+                    </div>
+                `;
+                modal.querySelector('.modal-footer').innerHTML = `
+                    <button type="button" class="btn btn-primary" onclick="this.closest('.modal-overlay').remove()">
+                        Zavřít
+                    </button>
+                `;
+            } catch (error) {
+                let errorMsg = 'Neznámá chyba';
+                if (error instanceof Error) {
+                    errorMsg = error.message;
+                    if (error.response && typeof error.response === 'object') {
+                        errorMsg = error.response.detail || error.response.message || errorMsg;
+                    }
+                } else if (typeof error === 'object') {
+                    errorMsg = error.detail || error.message || 'Neznámá chyba';
+                }
+                errorDiv.textContent = 'Chyba při změně hesla: ' + errorMsg;
+                errorDiv.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-save"></i> Změnit heslo';
+            }
+        };
+
+        submitBtn.addEventListener('click', handleSubmit);
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            handleSubmit();
+        });
+
+        // Close on overlay click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+
+        // Focus first input
+        modal.querySelector('#oldPassword').focus();
+    },
+
+    async renderFolderContents(object, folderPath, viewMode = 'tree') {
+        try {
+            // Store folder path in state for persistence
+            if (!this.state.projectFolders) {
+                this.state.projectFolders = {};
+            }
+            this.state.projectFolders[object.id] = folderPath;
+
+            // Call API to get folder contents with sudo
+            const url = `${API.baseURL}/tools/files/list?path=${encodeURIComponent(folderPath)}&allow_any=true&use_sudo=true`;
+            const response = await fetch(url, {
+                headers: API.getAuthHeaders()
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to load folder contents: ${response.statusText}`);
+            }
+
+            const contents = await response.json();
+
+            // Store current folder path for navigation
+            this.state.currentFolderPath = folderPath;
+            this.state.currentFolderFiles = contents.files || [];
+
+            if (viewMode === 'tree') {
+                // Render tree view (like folder picker)
+                await this.renderFolderTreeView(object, folderPath, contents.files || []);
+            } else {
+                // Render list view
+                await this.renderFolderListView(object, folderPath, contents.files || []);
+            }
+        } catch (error) {
+            console.error('Error loading folder contents:', error);
+            Components.showToast('Chyba při načítání obsahu složky', 'error');
+            // Fallback to documents view
+            const docsResponse = await API.getObjectDocuments(object.id);
+            this.state.documents = docsResponse.documents || [];
+            Components.renderObjectView(object, this.state.documents, 'list');
+        }
+    },
+
+    async renderFolderTreeView(object, folderPath, files) {
+        const mainView = document.getElementById('main-view');
+
+        // Sort: folders first, then files
+        const folders = files.filter(f => f.type === 'directory').sort((a, b) => a.name.localeCompare(b.name));
+        const fileList = files.filter(f => f.type === 'file').sort((a, b) => a.name.localeCompare(b.name));
+        const allItems = [...folders, ...fileList];
+
+        let treeHTML = '';
+        allItems.forEach((item) => {
+            const isFolder = item.type === 'directory';
+            const icon = isFolder ? 'fa-folder' : this.getFileIcon(item.name);
+            const iconColor = isFolder ? '#f39c12' : '#95a5a6';
+            const size = item.size ? Components.formatFileSize(item.size) : '-';
+
+            treeHTML += `
+                <div class="folder-tree-item"
+                     data-path="${item.path.replace(/'/g, "\\'")}"
+                     data-type="${item.type}"
+                     onclick="app.navigateProjectFolder('${item.path.replace(/'/g, "\\'")}', '${item.type}', ${object.id})"
+                     style="padding: 0.5rem 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; border-left: 3px solid transparent; transition: all 0.2s;"
+                     onmouseover="this.style.background='#f5f5f5'; this.style.borderLeftColor='#3498db'"
+                     onmouseout="this.style.background='transparent'; this.style.borderLeftColor='transparent'">
+                    <i class="fas ${icon}" style="color: ${iconColor}; width: 20px; text-align: center;"></i>
+                    <span style="flex: 1; font-size: 0.9rem;">${item.name}</span>
+                    ${isFolder ? '<i class="fas fa-chevron-right" style="color: #bdc3c7; font-size: 0.7rem;"></i>' : `<span style="color: #7f8c8d; font-size: 0.8rem;">${size}</span>`}
+                </div>
+            `;
+        });
+
+        // Build breadcrumb
+        const pathParts = folderPath.split('/').filter(p => p);
+        let breadcrumbHTML = '';
+        let currentPath = '';
+        pathParts.forEach((part, index) => {
+            if (index === 0) {
+                currentPath = '/' + part;
+            } else {
+                currentPath += '/' + part;
+            }
+            const isLast = index === pathParts.length - 1;
+            const separator = index > 0 ? ' <span style="color: #7f8c8d;">/</span> ' : '';
+            breadcrumbHTML += `${separator}<span style="color: ${isLast ? '#2c3e50' : '#3498db'}; cursor: pointer; ${isLast ? 'font-weight: 600;' : ''}" onclick="app.navigateProjectFolder('${currentPath.replace(/'/g, "\\'")}', 'directory', ${object.id})" title="${isLast ? 'Aktuální složka' : 'Klikni pro otevření'}">${part}</span>`;
+        });
+
+        mainView.innerHTML = `
+            <div class="object-view">
+                <div class="object-header-compact">
+                    <div class="object-header-title">
+                        <h2 class="object-name">${object.object_name || object.name}</h2>
+                    </div>
+                    <div class="object-header-description">
+                        <span class="object-desc-text">${object.description || 'No description'}</span>
+                    </div>
+                    <div class="object-header-actions">
+                        <button class="btn-icon-only" onclick="app.toggleProjectFolderView(${object.id})" title="Přepnout na seznam">
+                            <i class="fas fa-list"></i>
+                        </button>
+                        <button class="object-info-btn" onclick="app.toggleObjectInfo(${object.id})" title="More info">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                    </div>
+                </div>
+                <div style="padding: 1rem; background: #f5f7fa; border-radius: 4px; margin: 1rem 0; display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0;">
+                        <i class="fas fa-folder" style="color: #f39c12;"></i>
+                        <strong>Cesta:</strong>
+                        <div style="font-family: monospace; font-size: 0.85rem; word-break: break-all; flex: 1;">
+                            ${breadcrumbHTML}
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="app.navigateProjectFolderUp(${object.id})" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; white-space: nowrap;">
+                        <i class="fas fa-arrow-up"></i> Nahoru
+                    </button>
+                </div>
+                <div id="project-folder-tree" style="max-height: 600px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px; background: white;">
+                    ${treeHTML || '<div style="text-align: center; padding: 2rem; color: #7f8c8d;">Složka je prázdná</div>'}
+                </div>
+            </div>
+        `;
+    },
+
+    async renderFolderListView(object, folderPath, files) {
+        const mainView = document.getElementById('main-view');
+
+        // Sort: folders first, then files
+        const folders = files.filter(f => f.type === 'directory').sort((a, b) => a.name.localeCompare(b.name));
+        const fileList = files.filter(f => f.type === 'file').sort((a, b) => a.name.localeCompare(b.name));
+        const allItems = [...folders, ...fileList];
+
+        const filesHTML = allItems.length > 0
+            ? allItems.map(file => {
+                const icon = file.type === 'directory' ? 'fa-folder' : this.getFileIcon(file.name);
+                const size = file.size ? Components.formatFileSize(file.size) : '-';
+                return `
+                    <div class="document-card" onclick="app.navigateProjectFolder('${file.path.replace(/'/g, "\\'")}', '${file.type}', ${object.id})">
+                        <div class="document-card-icon">
+                            <i class="fas ${icon}"></i>
+                        </div>
+                        <h4>${file.name}</h4>
+                        <div class="meta">
+                            ${file.type === 'directory' ? 'Folder' : 'File'} • ${size}
+                        </div>
+                    </div>
+                `;
+            }).join('')
+            : '<p style="color: #7f8c8d;">Složka je prázdná</p>';
+
+        // Build breadcrumb
+        const pathParts = folderPath.split('/').filter(p => p);
+        let breadcrumbHTML = '';
+        let currentPath = '';
+        pathParts.forEach((part, index) => {
+            if (index === 0) {
+                currentPath = '/' + part;
+            } else {
+                currentPath += '/' + part;
+            }
+            const isLast = index === pathParts.length - 1;
+            const separator = index > 0 ? ' <span style="color: #7f8c8d;">/</span> ' : '';
+            breadcrumbHTML += `${separator}<span style="color: ${isLast ? '#2c3e50' : '#3498db'}; cursor: pointer; ${isLast ? 'font-weight: 600;' : ''}" onclick="app.navigateProjectFolder('${currentPath.replace(/'/g, "\\'")}', 'directory', ${object.id})" title="${isLast ? 'Aktuální složka' : 'Klikni pro otevření'}">${part}</span>`;
+        });
+
+        mainView.innerHTML = `
+            <div class="object-view">
+                <div class="object-header-compact">
+                    <div class="object-header-title">
+                        <h2 class="object-name">${object.object_name || object.name}</h2>
+                    </div>
+                    <div class="object-header-description">
+                        <span class="object-desc-text">${object.description || 'No description'}</span>
+                    </div>
+                    <div class="object-header-actions">
+                        <button class="btn-icon-only" onclick="app.toggleProjectFolderView(${object.id})" title="Přepnout na strom">
+                            <i class="fas fa-sitemap"></i>
+                        </button>
+                        <button class="object-info-btn" onclick="app.toggleObjectInfo(${object.id})" title="More info">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                    </div>
+                </div>
+                <div style="padding: 1rem; background: #f5f7fa; border-radius: 4px; margin: 1rem 0; display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0;">
+                        <i class="fas fa-folder" style="color: #f39c12;"></i>
+                        <strong>Cesta:</strong>
+                        <div style="font-family: monospace; font-size: 0.85rem; word-break: break-all; flex: 1;">
+                            ${breadcrumbHTML}
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="app.navigateProjectFolderUp(${object.id})" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; white-space: nowrap;">
+                        <i class="fas fa-arrow-up"></i> Nahoru
+                    </button>
+                </div>
+                <div id="documents-container" class="documents-container">
+                    <div class="documents-grid">
+                        ${filesHTML}
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    async navigateProjectFolder(path, type, objectId) {
+        if (type === 'directory') {
+            // Navigate into folder
+            const object = await API.getObject(objectId);
+            const viewMode = this.state.projectFolderViewMode || 'tree';
+            await this.renderFolderContents(object, path, viewMode);
+        } else {
+            // Open file
+            await this.openFile(path);
+        }
+    },
+
+    async openFile(filePath) {
+        try {
+            Components.showToast('Načítám soubor...', 'info');
+
+            const response = await API.downloadFile(filePath, true, true);
+            const contentType = response.headers.get('content-type') || '';
+            const contentDisposition = response.headers.get('content-disposition') || '';
+            const fileName = filePath.split('/').pop();
+
+            // Check if it's a text file
+            const textTypes = ['text/', 'application/json', 'application/xml', 'application/javascript'];
+            const textExtensions = ['.txt', '.json', '.xml', '.html', '.css', '.js', '.py', '.md', '.yml', '.yaml', '.sh', '.sql', '.log', '.conf', '.ini', '.env'];
+            const isTextFile = textTypes.some(t => contentType.includes(t)) ||
+                              textExtensions.some(ext => fileName.toLowerCase().endsWith(ext));
+
+            // Check if it's an image
+            const isImage = contentType.startsWith('image/');
+
+            if (isTextFile) {
+                // Show text content in modal
+                const text = await response.text();
+                this.showFileContentModal(fileName, text, contentType);
+            } else if (isImage) {
+                // Show image in modal
+                const blob = await response.blob();
+                const imageUrl = URL.createObjectURL(blob);
+                this.showImageModal(fileName, imageUrl);
+            } else {
+                // Download binary file
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                Components.showToast(`Soubor ${fileName} stažen`, 'success');
+            }
+        } catch (error) {
+            console.error('Error opening file:', error);
+            Components.showToast(`Chyba při otevírání souboru: ${error.message}`, 'error');
+        }
+    },
+
+    showFileContentModal(fileName, content, contentType) {
+        // Create modal for text content
+        const modal = document.createElement('div');
+        modal.id = 'file-content-modal';
+        modal.className = 'modal';
+        modal.style.display = 'block';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 90vw; max-height: 90vh; width: 1200px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-file-code"></i> ${fileName}</h3>
+                    <button class="modal-close" onclick="app.closeFileContentModal()">&times;</button>
+                </div>
+                <div class="modal-body" style="padding: 0; overflow: hidden; display: flex; flex-direction: column;">
+                    <div style="padding: 1rem; background: #f5f7fa; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <button class="btn btn-secondary" onclick="app.downloadFileContent('${fileName}', \`${content.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">
+                                <i class="fas fa-download"></i> Stáhnout
+                            </button>
+                        </div>
+                        <div style="color: #7f8c8d; font-size: 0.85rem;">
+                            ${Components.formatFileSize(new Blob([content]).size)}
+                        </div>
+                    </div>
+                    <pre style="margin: 0; padding: 1rem; overflow: auto; flex: 1; background: #2c3e50; color: #ecf0f1; font-family: 'Courier New', monospace; font-size: 0.9rem; line-height: 1.5;"><code>${this.escapeHtml(content)}</code></pre>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Close on outside click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeFileContentModal();
+            }
+        });
+    },
+
+    showImageModal(fileName, imageUrl) {
+        // Create modal for image
+        const modal = document.createElement('div');
+        modal.id = 'image-modal';
+        modal.className = 'modal';
+        modal.style.display = 'block';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 95vw; max-height: 95vh; width: auto; height: auto;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-image"></i> ${fileName}</h3>
+                    <button class="modal-close" onclick="app.closeImageModal()">&times;</button>
+                </div>
+                <div class="modal-body" style="padding: 1rem; text-align: center; background: #2c3e50; overflow: auto;">
+                    <img src="${imageUrl}" alt="${fileName}" style="max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 4px;">
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Close on outside click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeImageModal();
+            }
+        });
+    },
+
+    closeFileContentModal() {
+        const modal = document.getElementById('file-content-modal');
+        if (modal) {
+            modal.remove();
+        }
+    },
+
+    closeImageModal() {
+        const modal = document.getElementById('image-modal');
+        if (modal) {
+            const img = modal.querySelector('img');
+            if (img && img.src) {
+                URL.revokeObjectURL(img.src);
+            }
+            modal.remove();
+        }
+    },
+
+    downloadFileContent(fileName, content) {
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        Components.showToast(`Soubor ${fileName} stažen`, 'success');
+    },
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+
+    async navigateProjectFolderUp(objectId) {
+        const currentPath = this.state.currentFolderPath;
+        if (!currentPath) return;
+
+        const pathParts = currentPath.split('/').filter(p => p);
+        if (pathParts.length > 0) {
+            pathParts.pop();
+            const parentPath = pathParts.length > 0 ? '/' + pathParts.join('/') : '/';
+            const object = await API.getObject(objectId);
+            const viewMode = this.state.projectFolderViewMode || 'tree';
+            await this.renderFolderContents(object, parentPath, viewMode);
+        }
+    },
+
+    async toggleProjectFolderView(objectId) {
+        const currentViewMode = this.state.projectFolderViewMode || 'tree';
+        const newViewMode = currentViewMode === 'tree' ? 'list' : 'tree';
+        this.state.projectFolderViewMode = newViewMode;
+
+        const object = await API.getObject(objectId);
+        const folderPath = this.state.currentFolderPath || (object.metadata && object.metadata.folder_path);
+        if (folderPath) {
+            await this.renderFolderContents(object, folderPath, newViewMode);
+        }
+    },
+
+    getFileIcon(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        const iconMap = {
+            'pdf': 'fa-file-pdf',
+            'doc': 'fa-file-word',
+            'docx': 'fa-file-word',
+            'xls': 'fa-file-excel',
+            'xlsx': 'fa-file-excel',
+            'txt': 'fa-file-alt',
+            'md': 'fa-file-alt',
+            'py': 'fa-file-code',
+            'js': 'fa-file-code',
+            'html': 'fa-file-code',
+            'css': 'fa-file-code',
+            'json': 'fa-file-code',
+            'yaml': 'fa-file-code',
+            'yml': 'fa-file-code'
+        };
+        return iconMap[ext] || 'fa-file';
+    },
+
+    openFolder(path) {
+        // This is now handled by navigateProjectFolder
+        Components.showToast('Navigace do složky zatím není implementována', 'info');
+    },
+
+
+    searchSubcategory(query, selectId) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+
+        const options = Array.from(select.options);
+        const searchTerm = query.toLowerCase();
+
+        options.forEach(option => {
+            if (option.value === '') {
+                option.style.display = '';
+                return;
+            }
+            const text = option.textContent.toLowerCase();
+            if (text.includes(searchTerm)) {
+                option.style.display = '';
+            } else {
+                option.style.display = 'none';
+            }
+        });
+    },
+
+    async openFolderPicker(inputId, startPath = '/opt/kms', allowAny = true) {
+        // Create single-panel file manager (MC Commander style)
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.id = 'folder-picker-modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 1000px; width: 90vw; height: 80vh; display: flex; flex-direction: column;">
+                <div class="form-header" style="padding: 0.75rem 1rem; margin-bottom: 0.5rem; border-bottom: 1px solid #e0e0e0;">
+                    <h3 style="font-size: 1rem; margin: 0;"><i class="fas fa-folder-open"></i> Průvodce výběrem složky projektu</h3>
+                    <button onclick="app.closeFolderPicker()" class="close-btn">&times;</button>
+                </div>
+                <div style="flex: 1; display: flex; flex-direction: column; padding: 0.5rem; overflow: hidden;">
+                    <!-- Path input bar -->
+                    <div style="margin-bottom: 0.5rem; display: flex; gap: 0.5rem; align-items: center;">
+                        <input type="text" id="folder-path-manual" placeholder="/opt/kms nebo /mnt/network"
+                            value="${startPath}" style="flex: 1; padding: 0.5rem; font-size: 0.85rem; font-family: monospace; border: 1px solid #ddd; border-radius: 4px;"
+                            onkeypress="if(event.key==='Enter') app.navigateToManualPathMC()">
+                        <button type="button" onclick="app.navigateToManualPathMC()" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" title="Přejít na cestu">
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                        <button type="button" onclick="app.createNewFolderMC()" class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; background: #27ae60; border-color: #27ae60;" title="Vytvořit novou složku">
+                            <i class="fas fa-folder-plus"></i> Nová složka
+                        </button>
+                        <button type="button" onclick="app.navigateMCUp()" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" title="Nadřazená složka">
+                            <i class="fas fa-arrow-up"></i>
+                        </button>
+                    </div>
+                    <!-- Single panel -->
+                    <div style="flex: 1; display: flex; flex-direction: column; border: 2px solid #3498db; border-radius: 4px; background: #f8f9fa; overflow: hidden;">
+                        <div style="padding: 0.5rem; background: #3498db; color: white; font-weight: 600; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
+                            <span><i class="fas fa-folder"></i> Aktuální složka</span>
+                            <span id="mc-current-path" style="font-family: monospace; font-size: 0.75rem; font-weight: normal;">${startPath}</span>
+                        </div>
+                        <div style="flex: 1; overflow-y: auto; background: white;">
+                            <div id="mc-content" style="padding: 0.25rem;">
+                                <div style="text-align: center; padding: 2rem; color: #7f8c8d;">
+                                    <i class="fas fa-spinner fa-spin"></i> Načítání...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Status bar and buttons -->
+                    <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 0.75rem; color: #7f8c8d;">
+                            <span id="mc-status">Enter: Otevřít | ↑↓: Navigace | Backspace: Nahoru</span>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button type="button" onclick="app.closeFolderPicker()" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+                                Zrušit
+                            </button>
+                            <button type="button" onclick="app.selectFolderPathMC('${inputId}')" class="btn btn-primary" id="select-folder-btn-mc" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+                                <i class="fas fa-check"></i> Vybrat
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.style.display = 'flex';
+
+        // Initialize MC Commander state (single panel)
+        this.mcState = {
+            activePanel: 'single', // Set active panel for single panel mode
+            currentPath: startPath,
+            singlePath: startPath, // Also set singlePath for compatibility
+            selectedIndex: 0,
+            inputId: inputId,
+            allowAny: allowAny,
+            useSudo: true  // Use sudo for file operations
+        };
+
+        // Load initial folder
+        await this.loadMCPanel('single', startPath);
+
+        // Setup keyboard shortcuts
+        this.setupMCKeyboard();
+    },
+
+    async navigateToManualPath() {
+        const input = document.getElementById('folder-path-manual');
+        if (input && input.value.trim()) {
+            await this.loadFolderPicker(input.value.trim());
+        }
+    },
+
+    async createNewFolder() {
+        const currentPath = this.folderPickerState?.currentPath || '/opt/kms';
+        const folderName = prompt('Zadej název nové složky:', '');
+        if (!folderName || !folderName.trim()) return;
+
+        const newPath = currentPath.endsWith('/')
+            ? currentPath + folderName.trim()
+            : currentPath + '/' + folderName.trim();
+
+        try {
+            const result = await API.request(`/tools/files/create-folder?path=${encodeURIComponent(newPath)}`, { method: 'POST' });
+            Components.showToast(result.message || 'Složka vytvořena', 'success');
+            await this.loadFolderPicker(currentPath); // Reload current folder
+        } catch (error) {
+            Components.showToast(error.message || 'Chyba při vytváření složky', 'error');
+        }
+    },
+
+    async loadMCPanel(panel, path) {
+        const contentEl = panel === 'single' ? document.getElementById('mc-content') : document.getElementById(`mc-${panel}-content`);
+        const pathEl = panel === 'single' ? document.getElementById('mc-current-path') : document.getElementById(`mc-${panel}-path`);
+
+        try {
+            // Ensure mcState exists
+            if (!this.mcState) {
+                this.mcState = { allowAny: true, useSudo: true };
+            }
+            this.mcState.allowAny = this.mcState.allowAny !== false;
+            this.mcState.useSudo = this.mcState.useSudo !== false;
+
+            // Update path display
+            if (pathEl) {
+                pathEl.textContent = path;
+            }
+
+            // Update state
+            if (panel === 'single') {
+                this.mcState.currentPath = path;
+            } else {
+                this.mcState[`${panel}Path`] = path;
+            }
+
+            // Load folder contents with sudo support
+            const url = `/tools/files/list?path=${encodeURIComponent(path)}&allow_any=${this.mcState.allowAny}&use_sudo=${this.mcState.useSudo}`;
+            const data = await API.request(url);
+
+            if (!data.files || data.files.length === 0) {
+                contentEl.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: #7f8c8d;">
+                        <i class="fas fa-folder-open" style="font-size: 2rem; color: #bdc3c7; margin-bottom: 0.5rem;"></i><br>
+                        <div>Složka je prázdná</div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Sort: folders first, then files
+            const folders = data.files.filter(f => f.type === 'directory').sort((a, b) => a.name.localeCompare(b.name));
+            const files = data.files.filter(f => f.type === 'file').sort((a, b) => a.name.localeCompare(b.name));
+            const allItems = [...folders, ...files];
+
+            let html = '';
+            allItems.forEach((item, index) => {
+                const isSelected = index === this.mcState[`${panel}SelectedIndex`];
+                const isFolder = item.type === 'directory';
+                const icon = isFolder ? 'fa-folder' : this.getFileIcon(item.name);
+                const iconColor = isFolder ? '#f39c12' : '#95a5a6';
+                const bgColor = isSelected ? '#e3f2fd' : 'transparent';
+
+                html += `
+                    <div class="mc-item"
+                         data-index="${index}"
+                         data-path="${item.path.replace(/'/g, "\\'")}"
+                         data-type="${item.type}"
+                         onclick="app.selectMCItem('${panel}', ${index}, '${item.path.replace(/'/g, "\\'")}', '${item.type}')"
+                         ondblclick="app.openMCItem('${panel}', '${item.path.replace(/'/g, "\\'")}', '${item.type}')"
+                         style="padding: 0.4rem 0.5rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; background: ${bgColor}; border-left: 3px solid ${isSelected ? '#3498db' : 'transparent'};"
+                         onmouseover="if(!this.style.background.includes('e3f2fd')) this.style.background='#f5f5f5'"
+                         onmouseout="if(!this.style.background.includes('e3f2fd')) this.style.background='${bgColor}'">
+                        <i class="fas ${icon}" style="color: ${iconColor}; width: 20px; text-align: center;"></i>
+                        <span style="flex: 1; font-size: 0.85rem; font-family: monospace;">${item.name}</span>
+                        ${isFolder ? '<i class="fas fa-chevron-right" style="color: #bdc3c7; font-size: 0.7rem;"></i>' : ''}
+                    </div>
+                `;
+            });
+
+            contentEl.innerHTML = html;
+
+            // Update selection after loading
+            if (panel === 'single') {
+                this.updateMCPanelSelection('single');
+            } else {
+                this.updateMCPanelSelection(panel);
+                this.updateMCPanelBorders();
+            }
+            this.updateMCStatus();
+        } catch (error) {
+            console.error(`Error loading ${panel} panel:`, error);
+            let errorMessage = error.message || 'Neznámá chyba';
+            if (error.status === 403) {
+                errorMessage = 'Nemáš oprávnění k této složce';
+            } else if (error.status === 404) {
+                errorMessage = 'Složka neexistuje';
+            }
+            contentEl.innerHTML = `
+                <div style="text-align: center; padding: 2rem; color: #e74c3c;">
+                    <i class="fas fa-exclamation-circle"></i><br>
+                    <strong>Chyba</strong><br>
+                    <span style="font-size: 0.85rem;">${errorMessage}</span>
+                </div>
+            `;
+        }
+    },
+
+    selectMCItem(panel, index, path, type) {
+        if (panel === 'single') {
+            this.mcState.selectedIndex = index;
+        } else {
+            this.mcState[`${panel}SelectedIndex`] = index;
+            this.mcState.activePanel = panel;
+        }
+        this.updateMCPanelSelection(panel);
+        this.updateMCStatus();
+    },
+
+    openMCItem(panel, path, type) {
+        if (type === 'directory') {
+            this.loadMCPanel(panel, path);
+            if (panel === 'single') {
+                this.mcState.selectedIndex = 0;
+            } else {
+                this.mcState[`${panel}SelectedIndex`] = 0;
+            }
+        }
+    },
+
+    updateMCPanelSelection(panel) {
+        const contentEl = panel === 'single' ? document.getElementById('mc-content') : document.getElementById(`mc-${panel}-content`);
+        if (!contentEl) return;
+        const items = contentEl.querySelectorAll('.mc-item');
+        items.forEach((item, index) => {
+            if (!item || !item.style) return;
+            const isSelected = panel === 'single'
+                ? (index === this.mcState.selectedIndex)
+                : (index === this.mcState[`${panel}SelectedIndex`]);
+            item.style.background = isSelected ? '#e3f2fd' : 'transparent';
+            item.style.borderLeft = isSelected ? '3px solid #3498db' : '3px solid transparent';
+        });
+    },
+
+    switchMCPanel() {
+        const newPanel = this.mcState.activePanel === 'left' ? 'right' : 'left';
+        this.mcState.activePanel = newPanel;
+        this.updateMCPanelBorders();
+        this.updateMCStatus();
+    },
+
+    updateMCPanelBorders() {
+        // Not needed for single panel, but keep for compatibility
+        // Single panel always has blue border, so no need to update
+        const leftPanel = document.getElementById('mc-panel-left');
+        const rightPanel = document.getElementById('mc-panel-right');
+        if (!leftPanel || !rightPanel) {
+            // Single panel mode - no borders to update
+            return;
+        }
+        // Two panel mode (if ever used)
+        if (this.mcState && this.mcState.activePanel === 'left') {
+            if (leftPanel && leftPanel.style) leftPanel.style.borderColor = '#3498db';
+            if (rightPanel && rightPanel.style) rightPanel.style.borderColor = '#95a5a6';
+        } else {
+            if (leftPanel && leftPanel.style) leftPanel.style.borderColor = '#95a5a6';
+            if (rightPanel && rightPanel.style) rightPanel.style.borderColor = '#3498db';
+        }
+    },
+
+    navigateMCUp() {
+        const currentPath = this.mcState.currentPath || '/opt/kms';
+        const pathParts = currentPath.split('/').filter(p => p);
+        if (pathParts.length > 0) {
+            pathParts.pop();
+            const parentPath = pathParts.length > 0 ? '/' + pathParts.join('/') : '/';
+            this.loadMCPanel('single', parentPath);
+            this.mcState.selectedIndex = 0;
+        }
+    },
+
+    navigateMCDown() {
+        const contentEl = document.getElementById('mc-content');
+        if (!contentEl) return;
+        const items = contentEl.querySelectorAll('.mc-item');
+        if (items.length > 0) {
+            const currentIndex = this.mcState.selectedIndex || 0;
+            const nextIndex = Math.min(currentIndex + 1, items.length - 1);
+            this.mcState.selectedIndex = nextIndex;
+            this.updateMCPanelSelection('single');
+            const nextItem = items[nextIndex];
+            if (nextItem) {
+                nextItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }
+    },
+
+    navigateMCUpInList() {
+        const contentEl = document.getElementById('mc-content');
+        if (!contentEl) return;
+        const items = contentEl.querySelectorAll('.mc-item');
+        if (items.length > 0) {
+            const currentIndex = this.mcState.selectedIndex || 0;
+            const prevIndex = Math.max(currentIndex - 1, 0);
+            this.mcState.selectedIndex = prevIndex;
+            this.updateMCPanelSelection('single');
+            const prevItem = items[prevIndex];
+            if (prevItem) {
+                prevItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }
+    },
+
+    navigateMCEnter() {
+        const contentEl = document.getElementById('mc-content');
+        if (!contentEl) return;
+        const items = contentEl.querySelectorAll('.mc-item');
+        const selectedIndex = this.mcState.selectedIndex || 0;
+        if (items[selectedIndex]) {
+            const path = items[selectedIndex].dataset.path;
+            const type = items[selectedIndex].dataset.type;
+            this.openMCItem('single', path, type);
+        }
+    },
+
+    selectFolderPathMC(inputId) {
+        const selectedPath = this.mcState.currentPath;
+        const input = document.getElementById(inputId);
+        if (input && selectedPath) {
+            input.value = selectedPath;
+            this.closeFolderPicker();
+            Components.showToast(`Cesta vybrána: ${selectedPath}`, 'success');
+        }
+    },
+
+    navigateToManualPathMC() {
+        const input = document.getElementById('folder-path-manual');
+        if (input && input.value.trim()) {
+            const panel = this.mcState.activePanel;
+            this.loadMCPanel(panel, input.value.trim());
+            this.mcState[`${panel}SelectedIndex`] = 0;
+        }
+    },
+
+    createNewFolderMC() {
+        console.log('createNewFolderMC called', this.mcState);
+
+        // Check if mcState exists
+        if (!this.mcState) {
+            console.error('mcState is not initialized');
+            Components.showToast('Chyba: Stav není inicializován. Zkus zavřít a znovu otevřít průvodce.', 'error');
+            return;
+        }
+
+        // Get current path - works for both single and two-panel mode
+        const currentPath = this.mcState.currentPath ||
+                           this.mcState[`${this.mcState.activePanel || 'single'}Path`] ||
+                           '/opt/kms';
+
+        console.log('Current path:', currentPath);
+
+        // Create modal for folder name input (instead of prompt which is not supported)
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.id = 'new-folder-modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="form-header" style="padding: 0.75rem 1rem; margin-bottom: 0.5rem;">
+                    <h3 style="font-size: 1rem; margin: 0;"><i class="fas fa-folder-plus"></i> Vytvořit novou složku</h3>
+                    <button onclick="app.closeNewFolderModal()" class="close-btn">&times;</button>
+                </div>
+                <div style="padding: 0 1rem 1rem;">
+                    <div class="form-group" style="margin-bottom: 0.75rem;">
+                        <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block; font-weight: 500;">Název složky *</label>
+                        <input type="text" id="new-folder-name" placeholder="např. my-project"
+                            style="width: 100%; padding: 0.5rem; font-size: 0.9rem; border: 1px solid #ddd; border-radius: 4px;"
+                            autofocus>
+                        <small style="color: #7f8c8d; display: block; margin-top: 0.25rem; font-size: 0.75rem;">
+                            <i class="fas fa-info-circle"></i> Použij pouze písmena, čísla, pomlčky a podtržítka
+                        </small>
+                    </div>
+                    <div style="padding: 0.5rem; background: #e3f2fd; border-radius: 4px; margin-bottom: 0.75rem;">
+                        <div style="font-size: 0.75rem; color: #7f8c8d; margin-bottom: 0.25rem;">Složka bude vytvořena v:</div>
+                        <div style="font-family: monospace; font-size: 0.85rem; color: #2c3e50; font-weight: 500;">${currentPath}</div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem;">
+                        <button type="button" onclick="app.closeNewFolderModal()" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+                            Zrušit
+                        </button>
+                        <button type="button" onclick="app.submitNewFolder('${currentPath.replace(/'/g, "\\'")}')" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.9rem; background: #27ae60; border-color: #27ae60;">
+                            <i class="fas fa-check"></i> Vytvořit
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.style.display = 'flex';
+
+        // Focus on input and handle Enter key
+        setTimeout(() => {
+            const input = document.getElementById('new-folder-name');
+            if (input) {
+                input.focus();
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this.submitNewFolder(currentPath);
+                    }
+                });
+            }
+        }, 100);
+
+        return; // Exit early, submitNewFolder will handle the rest
+    },
+
+    closeNewFolderModal() {
+        const modal = document.getElementById('new-folder-modal');
+        if (modal) {
+            modal.remove();
+        }
+    },
+
+    submitNewFolder(currentPath) {
+        const input = document.getElementById('new-folder-name');
+        if (!input) {
+            this.closeNewFolderModal();
+            return;
+        }
+
+        const folderName = input.value.trim();
+        if (!folderName) {
+            Components.showToast('Zadej prosím název složky', 'error');
+            input.focus();
+            return;
+        }
+
+        // Validate folder name (no slashes, no special chars)
+        const cleanName = folderName.replace(/[\/\\\?\*\|<>:"]/g, '_');
+        if (cleanName !== folderName) {
+            // Show confirmation in a better way
+            const confirmed = window.confirm && confirm(`Název složky byl upraven z "${folderName}" na "${cleanName}".\n\nPokračovat?`);
+            if (!confirmed) {
+                input.focus();
+                return;
+            }
+        }
+
+        const newPath = currentPath.endsWith('/')
+            ? currentPath + cleanName
+            : currentPath + '/' + cleanName;
+
+        console.log('Creating folder at:', newPath);
+
+        // Close modal first
+        this.closeNewFolderModal();
+
+        // Show loading
+        Components.showToast('Vytváření složky...', 'info');
+
+        // Use allow_any and use_sudo for folder creation
+        API.request(`/tools/files/create-folder?path=${encodeURIComponent(newPath)}&allow_any=true&use_sudo=true`, { method: 'POST' })
+            .then(result => {
+                console.log('Folder created successfully:', result);
+                Components.showToast(result.message || `Složka "${cleanName}" vytvořena`, 'success');
+                // Reload current panel to show new folder
+                const panel = this.mcState.activePanel || 'single';
+                this.loadMCPanel(panel, currentPath);
+
+                // Auto-select the newly created folder
+                setTimeout(() => {
+                    if (this.mcState) {
+                        this.mcState.selectedPath = newPath;
+                    }
+                    const selectBtn = document.getElementById('select-folder-btn-mc');
+                    if (selectBtn) {
+                        selectBtn.disabled = false;
+                    }
+                }, 500);
+            })
+            .catch(error => {
+                console.error('Error creating folder:', error);
+                const errorMsg = error.message || error.detail || 'Chyba při vytváření složky';
+                Components.showToast(errorMsg, 'error');
+            });
+    },
+
+    setupMCKeyboard() {
+        const modal = document.getElementById('folder-picker-modal');
+        if (!modal) return;
+
+        const handleKeyDown = (e) => {
+            if (!this.mcState) return;
+
+            // Tab: Switch panel
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                this.switchMCPanel();
+            }
+            // Arrow Up: Navigate up in list
+            else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                this.navigateMCUpInList();
+            }
+            // Arrow Down: Navigate down in list
+            else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.navigateMCDown();
+            }
+            // Enter: Open folder or select
+            else if (e.key === 'Enter') {
+                e.preventDefault();
+                this.navigateMCEnter();
+            }
+            // Backspace: Go to parent directory
+            else if (e.key === 'Backspace' && !e.target.matches('input')) {
+                e.preventDefault();
+                const panel = this.mcState.activePanel;
+                const currentPath = this.mcState[`${panel}Path`] || '/opt/kms';
+                const pathParts = currentPath.split('/').filter(p => p);
+                if (pathParts.length > 0) {
+                    pathParts.pop();
+                    const parentPath = pathParts.length > 0 ? '/' + pathParts.join('/') : '/';
+                    this.loadMCPanel(panel, parentPath);
+                    this.mcState[`${panel}SelectedIndex`] = 0;
+                }
+            }
+        };
+
+        modal.addEventListener('keydown', handleKeyDown);
+        // Focus modal for keyboard events
+        modal.focus();
+        modal.setAttribute('tabindex', '0');
+    },
+
+    updateMCStatus() {
+        const statusEl = document.getElementById('mc-status');
+        if (statusEl && this.mcState) {
+            const path = this.mcState.currentPath || '/';
+            statusEl.textContent = `Cesta: ${path}`;
+        }
+    },
+
+    getFileIcon(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        const iconMap = {
+            'md': 'fa-file-alt',
+            'txt': 'fa-file-alt',
+            'json': 'fa-file-code',
+            'js': 'fa-file-code',
+            'py': 'fa-file-code',
+            'html': 'fa-file-code',
+            'css': 'fa-file-code',
+            'jpg': 'fa-file-image',
+            'jpeg': 'fa-file-image',
+            'png': 'fa-file-image',
+            'gif': 'fa-file-image',
+            'pdf': 'fa-file-pdf',
+            'zip': 'fa-file-archive',
+            'tar': 'fa-file-archive',
+            'gz': 'fa-file-archive'
+        };
+        return iconMap[ext] || 'fa-file';
+    },
+
+    async loadFolderPicker(path) {
+        const contentEl = document.getElementById('folder-picker-content');
+        const breadcrumbEl = document.getElementById('breadcrumb-path');
+        const selectBtn = document.getElementById('select-folder-btn');
+
+        try {
+            contentEl.innerHTML = '<div style="text-align: center; padding: 2rem; color: #7f8c8d;"><i class="fas fa-spinner fa-spin"></i> Načítání složek...</div>';
+
+            // Ensure folderPickerState exists and allowAny is set
+            if (!this.folderPickerState) {
+                this.folderPickerState = { allowAny: true };
+            }
+            // Always allow any path for folder picker (default to true)
+            if (this.folderPickerState.allowAny === undefined || this.folderPickerState.allowAny === null) {
+                this.folderPickerState.allowAny = true;
+            }
+
+            // Use API.request() for proper authentication and error handling
+            // Always use allow_any=true for folder picker to allow navigation anywhere
+            const allowAny = this.folderPickerState.allowAny !== false; // Default to true
+            const url = `/tools/files/list?path=${encodeURIComponent(path)}&allow_any=${allowAny}`;
+            const data = await API.request(url);
+
+            // Update manual path input
+            const manualInput = document.getElementById('folder-path-manual');
+            if (manualInput) {
+                manualInput.value = path;
+            }
+            this.folderPickerState.currentPath = path;
+
+            // Update breadcrumb with clickable navigation
+            const pathParts = path.split('/').filter(p => p);
+            let breadcrumbHTML = '';
+            let currentPath = '';
+
+            // Build breadcrumb from root
+            pathParts.forEach((part, index) => {
+                if (index === 0) {
+                    currentPath = '/' + part;
+                } else {
+                    currentPath += '/' + part;
+                }
+                const isLast = index === pathParts.length - 1;
+                const separator = index > 0 ? ' <span style="color: #7f8c8d;">/</span> ' : '';
+                breadcrumbHTML += `${separator}<span style="color: ${isLast ? '#2c3e50' : '#3498db'}; cursor: pointer; ${isLast ? 'font-weight: 600;' : ''}" onclick="if(!app.folderPickerState) app.folderPickerState = {}; app.folderPickerState.allowAny = true; app.loadFolderPicker('${currentPath.replace(/'/g, "\\'")}')" title="${isLast ? 'Aktuální složka' : 'Klikni pro otevření'}">${part}</span>`;
+            });
+
+            if (pathParts.length === 0) {
+                breadcrumbHTML = '<span style="color: #2c3e50; font-weight: 600;">/</span>';
+            }
+
+            breadcrumbEl.innerHTML = breadcrumbHTML;
+
+            // Render folders and files
+            if (!data.files || data.files.length === 0) {
+                contentEl.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: #7f8c8d;">
+                        <i class="fas fa-folder-open" style="font-size: 3rem; color: #bdc3c7; margin-bottom: 1rem;"></i><br>
+                        <div>Složka je prázdná</div>
+                        <div style="font-size: 0.75rem; margin-top: 0.5rem;">Můžeš vybrat tuto složku tlačítkem níže</div>
+                    </div>
+                `;
+            } else {
+                const folders = data.files.filter(f => f.type === 'directory');
+                const files = data.files.filter(f => f.type === 'file');
+
+                let html = '';
+
+                // Show current folder option first (can select current folder)
+                html += `
+                    <div onclick="app.selectCurrentFolder()"
+                         ondblclick="app.selectCurrentFolder()"
+                         style="padding: 0.75rem; margin-bottom: 0.5rem; border: 2px solid #3498db; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; background: #e3f2fd; transition: all 0.2s;"
+                         onmouseover="this.style.background='#bbdefb'; this.style.borderColor='#2980b9'; this.style.transform='scale(1.01)'"
+                         onmouseout="this.style.background='#e3f2fd'; this.style.borderColor='#3498db'; this.style.transform='scale(1)'"
+                         title="Klikni nebo dvojklikni pro výběr">
+                        <i class="fas fa-check-circle" style="color: #3498db; font-size: 1.2rem;"></i>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #2980b9;">Vybrat tuto složku</div>
+                            <div style="font-size: 0.75rem; color: #7f8c8d; font-family: monospace;">${path}</div>
+                        </div>
+                        <i class="fas fa-arrow-right" style="color: #3498db;"></i>
+                    </div>
+                `;
+
+                if (folders.length > 0) {
+                    html += '<div style="margin: 0.75rem 0 0.5rem 0; padding-bottom: 0.5rem; border-bottom: 1px solid #e0e0e0; color: #7f8c8d; font-size: 0.85rem; font-weight: 500;">Podsložky (klikni pro otevření, dvojklik pro výběr):</div>';
+
+                    // Show folders
+                    folders.forEach(folder => {
+                        html += `
+                            <div onclick="if(!app.folderPickerState) app.folderPickerState = {}; app.folderPickerState.allowAny = true; app.loadFolderPicker('${folder.path.replace(/'/g, "\\'")}')"
+                                 ondblclick="app.selectFolderPath('${folder.path.replace(/'/g, "\\'")}')"
+                                 style="padding: 0.75rem; margin-bottom: 0.25rem; border: 1px solid #e0e0e0; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; transition: all 0.2s; position: relative;"
+                                 onmouseover="this.style.background='#f0f8ff'; this.style.borderColor='#3498db'; this.style.transform='translateX(2px)'"
+                                 onmouseout="this.style.background='white'; this.style.borderColor='#e0e0e0'; this.style.transform='translateX(0)'"
+                                 title="Klikni pro otevření, dvojklik pro výběr">
+                                <i class="fas fa-folder" style="color: #f39c12; font-size: 1.2rem;"></i>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500;">${folder.name}</div>
+                                    <div style="font-size: 0.75rem; color: #7f8c8d; font-family: monospace;">${folder.path}</div>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <button onclick="event.stopPropagation(); app.selectFolderPath('${folder.path.replace(/'/g, "\\'")}')"
+                                            style="padding: 0.3rem 0.6rem; font-size: 0.75rem; background: #3498db; color: white; border: none; border-radius: 3px; cursor: pointer;"
+                                            onmouseover="this.style.background='#2980b9'"
+                                            onmouseout="this.style.background='#3498db'"
+                                            title="Vybrat tuto složku">
+                                        <i class="fas fa-check"></i> Vybrat
+                                    </button>
+                                    <i class="fas fa-chevron-right" style="color: #bdc3c7;"></i>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                // Show files (non-clickable, just for info)
+                if (files.length > 0) {
+                    html += `<div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e0e0e0; color: #7f8c8d; font-size: 0.85rem; font-weight: 500;">Soubory v této složce (${files.length}):</div>`;
+                    files.slice(0, 3).forEach(file => {
+                        html += `
+                            <div style="padding: 0.5rem; margin-bottom: 0.25rem; color: #7f8c8d; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-file" style="color: #95a5a6;"></i>
+                                <span>${file.name}</span>
+                            </div>
+                        `;
+                    });
+                    if (files.length > 3) {
+                        html += `<div style="padding: 0.5rem; color: #7f8c8d; font-size: 0.85rem;">... a dalších ${files.length - 3} souborů</div>`;
+                    }
+                }
+
+                contentEl.innerHTML = html;
+            }
+
+            // Enable select button and set selected path
+            this.folderPickerState.selectedPath = path;
+            selectBtn.disabled = false;
+
+        } catch (error) {
+            console.error('Error loading folder:', error);
+            let errorMessage = error.message || 'Neznámá chyba';
+
+            // Better error messages based on error type
+            if (error.status === 401 || errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+                errorMessage = 'Chyba autentizace. Prosím obnov stránku a přihlas se znovu.';
+            } else if (error.status === 403 || errorMessage.includes('403') || errorMessage.includes('Forbidden')) {
+                if (errorMessage.includes('allow_any=true')) {
+                    errorMessage = 'Pro přístup k této složce použij parametr allow_any=true.';
+                } else if (errorMessage.includes('Path must be within')) {
+                    errorMessage = 'Cesta musí být v /opt/kms nebo použij allow_any=true pro libovolnou cestu.';
+                } else {
+                    errorMessage = 'Nemáš oprávnění k této složce. Zkus použít jinou cestu nebo kontaktuj administrátora.';
+                }
+            } else if (error.status === 404 || errorMessage.includes('404') || errorMessage.includes('not found') || errorMessage.includes('does not exist')) {
+                errorMessage = `Složka neexistuje: ${path}`;
+            } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+                errorMessage = 'Chyba připojení k serveru. Zkontroluj připojení.';
+            }
+
+            contentEl.innerHTML = `<div style="text-align: center; padding: 2rem; color: #e74c3c;">
+                <i class="fas fa-exclamation-circle" style="font-size: 2rem; margin-bottom: 1rem;"></i><br>
+                <strong>Chyba při načítání složky</strong><br>
+                <span style="font-size: 0.9rem;">${errorMessage}</span><br>
+                <small style="color: #95a5a6; margin-top: 0.5rem; display: block;">Cesta: ${path}</small>
+            </div>`;
+            selectBtn.disabled = true;
+        }
+    },
+
+    selectCurrentFolder() {
+        if (this.folderPickerState && this.folderPickerState.currentPath) {
+            this.folderPickerState.selectedPath = this.folderPickerState.currentPath;
+            this.selectFolderPath(this.folderPickerState.inputId);
+        }
+    },
+
+    navigateUp() {
+        // Ensure folderPickerState exists and allowAny is set
+        if (!this.folderPickerState) {
+            this.folderPickerState = { allowAny: true };
+        }
+        this.folderPickerState.allowAny = true; // Always allow any path
+
+        const currentPath = this.folderPickerState.currentPath || '/opt/kms';
+        // Get parent directory
+        const pathParts = currentPath.split('/').filter(p => p);
+        if (pathParts.length > 0) {
+            pathParts.pop(); // Remove last part
+            const parentPath = pathParts.length > 0 ? '/' + pathParts.join('/') : '/';
+            this.loadFolderPicker(parentPath);
+        } else if (currentPath !== '/') {
+            // If we're not at root, go to root
+            this.loadFolderPicker('/');
+        }
+    },
+
+    selectFolderPath(inputIdOrPath) {
+        // If it's a path (starts with /), set it as selected and then select the input
+        if (typeof inputIdOrPath === 'string' && inputIdOrPath.startsWith('/')) {
+            this.folderPickerState.selectedPath = inputIdOrPath;
+            inputIdOrPath = this.folderPickerState.inputId;
+        }
+
+        const input = document.getElementById(inputIdOrPath);
+        if (input && this.folderPickerState && this.folderPickerState.selectedPath) {
+            input.value = this.folderPickerState.selectedPath;
+            this.closeFolderPicker();
+            Components.showToast(`Cesta vybrána: ${this.folderPickerState.selectedPath}`, 'success');
+
+            // Show import option after selecting folder
+            this.showImportOption(this.folderPickerState.selectedPath, inputIdOrPath);
+        }
+    },
+
+    showImportOption(folderPath, inputId) {
+        // Ask if user wants to import project
+        if (confirm(`Chceš importovat projekt do složky?\n\n${folderPath}\n\nKlikni OK pro otevření importu.`)) {
+            this.openImportModal(folderPath, inputId);
+        }
+    },
+
+    async openImportModal(targetPath, inputId) {
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.id = 'import-modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="form-header" style="padding: 0.75rem 1rem; margin-bottom: 0.5rem;">
+                    <h3 style="font-size: 1rem; margin: 0;"><i class="fas fa-download"></i> Import projektu</h3>
+                    <button onclick="app.closeImportModal()" class="close-btn">&times;</button>
+                </div>
+                <div style="padding: 0 1rem 1rem;">
+                    <div style="margin-bottom: 1rem; padding: 0.75rem; background: #e3f2fd; border-radius: 4px;">
+                        <strong>Cílová složka:</strong> <span style="font-family: monospace; font-size: 0.9rem;">${targetPath}</span>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0.75rem;">
+                        <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block; font-weight: 500;">Zdroj importu *</label>
+                        <select id="import-source-type" onchange="app.handleImportSourceChange()" style="padding: 0.5rem; font-size: 0.9rem; width: 100%;">
+                            <option value="folder">Místní složka</option>
+                            <option value="sftp">SFTP (síťová složka)</option>
+                            <option value="github">GitHub</option>
+                            <option value="gitlab">GitLab</option>
+                            <option value="git">Git repository (URL)</option>
+                        </select>
+                    </div>
+                    <div id="import-source-config"></div>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #e0e0e0;">
+                        <button type="button" onclick="app.closeImportModal()" class="btn btn-secondary" style="flex: 1; padding: 0.5rem; font-size: 0.9rem;">Zrušit</button>
+                        <button type="button" onclick="app.startImport('${targetPath.replace(/'/g, "\\'")}')" class="btn btn-primary" style="flex: 1; padding: 0.5rem; font-size: 0.9rem;">
+                            <i class="fas fa-download"></i> Importovat
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.style.display = 'flex';
+
+        this.importState = { targetPath, inputId };
+        this.handleImportSourceChange();
+    },
+
+    handleImportSourceChange() {
+        const sourceType = document.getElementById('import-source-type').value;
+        const configEl = document.getElementById('import-source-config');
+
+        let html = '';
+
+        if (sourceType === 'folder') {
+            html = `
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Cesta ke zdrojové složce *</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="import-folder-path" placeholder="/path/to/source" style="flex: 1; padding: 0.5rem; font-size: 0.9rem; font-family: monospace;">
+                        <button type="button" onclick="app.openFolderPicker('import-folder-path')" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+                            <i class="fas fa-folder-open"></i> Vybrat
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else if (sourceType === 'sftp') {
+            html = `
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Host *</label>
+                    <input type="text" id="import-sftp-host" placeholder="sftp.example.com" style="padding: 0.5rem; font-size: 0.9rem; width: 100%;">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Port</label>
+                        <input type="number" id="import-sftp-port" value="22" style="padding: 0.5rem; font-size: 0.9rem; width: 100%;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Uživatel *</label>
+                        <input type="text" id="import-sftp-user" placeholder="username" style="padding: 0.5rem; font-size: 0.9rem; width: 100%;">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Heslo *</label>
+                    <input type="password" id="import-sftp-password" placeholder="password" style="padding: 0.5rem; font-size: 0.9rem; width: 100%;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Cesta na serveru *</label>
+                    <input type="text" id="import-sftp-path" placeholder="/remote/path" style="padding: 0.5rem; font-size: 0.9rem; width: 100%; font-family: monospace;">
+                </div>
+            `;
+        } else if (sourceType === 'github') {
+            html = `
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Repository (user/repo) *</label>
+                    <input type="text" id="import-github-repo" placeholder="username/repository" style="padding: 0.5rem; font-size: 0.9rem; width: 100%;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Branch</label>
+                    <input type="text" id="import-github-branch" value="main" placeholder="main" style="padding: 0.5rem; font-size: 0.9rem; width: 100%;">
+                </div>
+            `;
+        } else if (sourceType === 'gitlab') {
+            html = `
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Repository (user/repo) *</label>
+                    <input type="text" id="import-gitlab-repo" placeholder="username/repository" style="padding: 0.5rem; font-size: 0.9rem; width: 100%;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Branch</label>
+                    <input type="text" id="import-gitlab-branch" value="main" placeholder="main" style="padding: 0.5rem; font-size: 0.9rem; width: 100%;">
+                </div>
+            `;
+        } else if (sourceType === 'git') {
+            html = `
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Git URL *</label>
+                    <input type="text" id="import-git-url" placeholder="https://github.com/user/repo.git nebo git@github.com:user/repo.git" style="padding: 0.5rem; font-size: 0.9rem; width: 100%; font-family: monospace;">
+                </div>
+            `;
+        }
+
+        configEl.innerHTML = html;
+    },
+
+    async startImport(targetPath) {
+        const sourceType = document.getElementById('import-source-type').value;
+        let importData = {
+            source_type: sourceType,
+            target_path: targetPath
+        };
+
+        try {
+            if (sourceType === 'folder') {
+                const sourcePath = document.getElementById('import-folder-path').value;
+                if (!sourcePath) {
+                    Components.showToast('Zadej cestu ke zdrojové složce', 'error');
+                    return;
+                }
+                importData.source_path = sourcePath;
+            } else if (sourceType === 'sftp') {
+                importData.sftp_host = document.getElementById('import-sftp-host').value;
+                importData.sftp_port = parseInt(document.getElementById('import-sftp-port').value) || 22;
+                importData.sftp_user = document.getElementById('import-sftp-user').value;
+                importData.sftp_password = document.getElementById('import-sftp-password').value;
+                importData.sftp_path = document.getElementById('import-sftp-path').value;
+
+                if (!importData.sftp_host || !importData.sftp_user || !importData.sftp_password || !importData.sftp_path) {
+                    Components.showToast('Vyplň všechna povinná pole pro SFTP', 'error');
+                    return;
+                }
+            } else if (sourceType === 'github') {
+                importData.github_repo = document.getElementById('import-github-repo').value;
+                importData.github_branch = document.getElementById('import-github-branch').value || 'main';
+
+                if (!importData.github_repo) {
+                    Components.showToast('Zadej GitHub repository', 'error');
+                    return;
+                }
+            } else if (sourceType === 'gitlab') {
+                importData.gitlab_repo = document.getElementById('import-gitlab-repo').value;
+                importData.gitlab_branch = document.getElementById('import-gitlab-branch').value || 'main';
+
+                if (!importData.gitlab_repo) {
+                    Components.showToast('Zadej GitLab repository', 'error');
+                    return;
+                }
+            } else if (sourceType === 'git') {
+                importData.git_url = document.getElementById('import-git-url').value;
+
+                if (!importData.git_url) {
+                    Components.showToast('Zadej Git URL', 'error');
+                    return;
+                }
+            }
+
+            Components.showToast('Importování projektu...', 'info');
+            const result = await API.request('/tools/import', {
+                method: 'POST',
+                body: JSON.stringify(importData)
+            });
+
+            Components.showToast(result.message || 'Projekt úspěšně importován', 'success');
+            this.closeImportModal();
+
+        } catch (error) {
+            Components.showToast(error.message || 'Chyba při importu projektu', 'error');
+        }
+    },
+
+    closeImportModal() {
+        const modal = document.getElementById('import-modal');
+        if (modal) {
+            modal.remove();
+        }
+        this.importState = null;
+    },
+
+    closeFolderPicker() {
+        const modal = document.getElementById('folder-picker-modal');
+        if (modal) {
+            modal.remove();
+        }
+        this.folderPickerState = null;
+        this.mcState = null;
+    }
+};
+
+// Initialize app when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => app.init());
+} else {
+    app.init();
+}
+
+// === TOOLS FUNCTIONS ===
+
+app.openTool = async function(tool, objectId) {
+    try {
+        let response;
+
+        switch(tool) {
+            case 'terminal':
+                response = await API.openTerminal(objectId);
+                break;
+            case 'files':
+                response = await API.openFileBrowser(objectId);
+                break;
+            case 'vscode':
+                response = await API.openVSCode(objectId);
+                break;
+            case 'cursor':
+                response = await API.openCursor(objectId);
+                break;
+            case 'windsurf':
+                response = await API.openWindsurf(objectId);
+                break;
+        }
+
+        // Desktop editors (cursor, windsurf) run on server - show notification
+        if (tool === 'cursor' || tool === 'windsurf') {
+            Components.showToast(`${response.tool_name} spuštěn na serveru pro projekt "${response.project_name}"`, 'success');
+            Components.showToast(`Připoj se přes XRDP pro přístup k editoru`, 'info');
+            return;
+        }
+
+        // Web tools - open in new window
+        const width = 1400;
+        const height = 900;
+        const left = (screen.width - width) / 2;
+        const top = (screen.height - height) / 2;
+
+        window.open(
+            response.url,
+            `kms-${tool}-${objectId}`,
+            `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        );
+
+    } catch (error) {
+        console.error('Error opening tool:', error);
+        Components.showToast(`Failed to open ${tool}`, 'error');
+    }
+};
+
+app.currentClaudeObjectId = null;
+
+// Open local terminal
+app.openLocalTerminal = async function(objectId) {
+    try {
+        const object = await API.getObject(objectId);
+        const folderPath = object.metadata?.folder_path || object.file_path || '/opt/kms';
+
+        // Create a command that opens terminal in project folder
+        const command = `cd "${folderPath}"`;
+
+        // Show instructions based on platform
+        if (navigator.userAgent.includes('Windows')) {
+            Components.showToast('Otevřete terminál a spusťte: cd ' + folderPath, 'info');
+        } else if (navigator.userAgent.includes('Mac')) {
+            Components.showToast('Otevřete terminál a spusťte: cd ' + folderPath, 'info');
+        } else {
+            Components.showToast('Otevřete terminál a spusťte: cd ' + folderPath, 'info');
+        }
+
+        // Copy command to clipboard if possible
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(`cd "${folderPath}"`).then(() => {
+                Components.showToast('Příkaz zkopírován do schránky', 'success');
+            });
+        }
+    } catch (error) {
+        console.error('Error opening local terminal:', error);
+        Components.showToast('Chyba při otevírání místního terminálu', 'error');
+    }
+};
+
+// Open Claude AI in project folder (new window like terminal)
+app.openClaudeInProject = async function(objectId) {
+    try {
+        const object = await API.getObject(objectId);
+        const folderPath = object.metadata?.folder_path || object.file_path || '/opt/kms';
+
+        // Open Claude AI modal but in a new window-like interface
+        // For now, just open the modal - can be enhanced later
+        app.openClaudModal(objectId);
+
+        Components.showToast('Claude AI otevřen pro projekt ve složce: ' + folderPath, 'info');
+    } catch (error) {
+        console.error('Error opening Claude in project:', error);
+        Components.showToast('Chyba při otevírání Claude AI', 'error');
+    }
+};
+
+// Open Claude AI in local terminal with temporary login
+app.openClaudeInLocalTerminal = async function(objectId) {
+    try {
+        const object = await API.getObject(objectId);
+        const folderPath = object.metadata?.folder_path || object.file_path || '/opt/kms';
+
+        // Get user token for temporary login
+        const token = API.getToken();
+        if (!token) {
+            Components.showToast('Nejste přihlášeni', 'error');
+            return;
+        }
+
+        // Create command to run Claude CLI with temporary authentication
+        const command = `cd "${folderPath}" && export ANTHROPIC_API_KEY="<your-key>" && claude chat`;
+
+        // Show instructions
+        Components.showToast('Otevřete terminál a spusťte příkaz pro Claude CLI', 'info');
+
+        // Copy command to clipboard if possible
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(`cd "${folderPath}"`).then(() => {
+                Components.showToast('Cesta zkopírována do schránky. Nastavte ANTHROPIC_API_KEY a spusťte: claude chat', 'success');
+            });
+        }
+    } catch (error) {
+        console.error('Error opening Claude in local terminal:', error);
+        Components.showToast('Chyba při otevírání Claude AI v terminálu', 'error');
+    }
+};
+
+// Git operations
+app.gitOperation = async function(objectId, operation) {
+    try {
+        if (operation === 'commit') {
+            // Show modal for commit message
+            const message = prompt('Zadej commit message:');
+            if (!message || message.trim() === '') {
+                Components.showToast('Commit message je povinný', 'error');
+                return;
+            }
+
+            const response = await API.gitOperation(objectId, operation, message);
+            Components.showToast(response.message || 'Commit úspěšný', 'success');
+        } else if (operation === 'push' || operation === 'pull') {
+            // Ask for branch (optional)
+            const branch = prompt('Zadej branch (nech prázdné pro main/master):') || null;
+            const response = await API.gitOperation(objectId, operation, null, branch);
+            Components.showToast(response.message || `Git ${operation} úspěšný`, 'success');
+        } else {
+            // Status or other operations
+            const response = await API.gitOperation(objectId, operation);
+            if (operation === 'status') {
+                // Show status in modal or console
+                console.log('Git status:', response.output);
+                Components.showToast('Git status zobrazen v konzoli', 'info');
+            } else {
+                Components.showToast(response.message || `Git ${operation} úspěšný`, 'success');
+            }
+        }
+    } catch (error) {
+        console.error(`Error performing Git ${operation}:`, error);
+        const errorMsg = error.message || `Chyba při ${operation}`;
+        Components.showToast(errorMsg, 'error');
+    }
+};
+
+// Import project modal
+app.showImportModal = async function(objectId) {
+    const object = await API.getObject(objectId);
+    const targetPath = object.metadata && object.metadata.folder_path
+        ? object.metadata.folder_path
+        : `/opt/kms/${object.object_name || object.name}`;
+
+    const importModalHTML = `
+        <div class="form-header" style="padding: 0.75rem 1rem; margin-bottom: 0.5rem;">
+            <h3 style="font-size: 1rem; margin: 0;"><i class="fas fa-file-import"></i> Import Project</h3>
+            <button onclick="app.closeModal()" class="close-btn">&times;</button>
+        </div>
+        <form id="import-form" onsubmit="app.submitImport(event, ${objectId})" style="padding: 0 1rem 1rem;">
+            <div class="form-group" style="margin-bottom: 0.75rem;">
+                <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Zdroj *</label>
+                <select name="source_type" id="import-source-type" onchange="app.updateImportForm()" required style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                    <option value="local_computer">Místní počítač (z prohlížeče)</option>
+                    <option value="folder">Lokální složka na serveru</option>
+                    <option value="github">GitHub</option>
+                    <option value="gitlab">GitLab</option>
+                    <option value="git">Git URL</option>
+                    <option value="sftp">SFTP</option>
+                    <option value="smb">SMB/CIFS (Síťový disk)</option>
+                    <option value="nfs">NFS</option>
+                </select>
+            </div>
+
+            <!-- GitHub fields -->
+            <div id="import-github-fields" style="display: none;">
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">GitHub Repo (user/repo) *</label>
+                    <input type="text" name="github_repo" placeholder="username/repository" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Branch</label>
+                    <input type="text" name="github_branch" placeholder="main" value="main" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+            </div>
+
+            <!-- GitLab fields -->
+            <div id="import-gitlab-fields" style="display: none;">
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">GitLab Repo (user/repo nebo URL) *</label>
+                    <input type="text" name="gitlab_repo" placeholder="username/repository nebo https://gitlab.com/..." style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Branch</label>
+                    <input type="text" name="gitlab_branch" placeholder="main" value="main" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Access Token (volitelné)</label>
+                    <input type="password" name="gitlab_token" placeholder="Pro privátní repozitáře" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+            </div>
+
+            <!-- Git URL fields -->
+            <div id="import-git-fields" style="display: none;">
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Git URL *</label>
+                    <input type="text" name="git_url" placeholder="https://git.example.com/repo.git" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+            </div>
+
+            <!-- SFTP fields -->
+            <div id="import-sftp-fields" style="display: none;">
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Host *</label>
+                    <input type="text" name="sftp_host" placeholder="sftp.example.com" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Port</label>
+                    <input type="number" name="sftp_port" placeholder="22" value="22" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Username *</label>
+                    <input type="text" name="sftp_user" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Password *</label>
+                    <input type="password" name="sftp_password" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Remote Path *</label>
+                    <input type="text" name="sftp_path" placeholder="/path/to/project" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+            </div>
+
+            <!-- SMB fields -->
+            <div id="import-smb-fields" style="display: none;">
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">SMB Share (//server/share) *</label>
+                    <input type="text" name="smb_share" placeholder="//server/share" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Username</label>
+                    <input type="text" name="smb_user" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Password</label>
+                    <input type="password" name="smb_password" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Cesta ve share (volitelné)</label>
+                    <input type="text" name="source_path" placeholder="/subfolder" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+            </div>
+
+            <!-- NFS fields -->
+            <div id="import-nfs-fields" style="display: none;">
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">NFS Path (server:/path) *</label>
+                    <input type="text" name="nfs_path" placeholder="server:/export/path" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Cesta v exportu (volitelné)</label>
+                    <input type="text" name="source_path" placeholder="/subfolder" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+            </div>
+
+            <!-- Local Computer fields -->
+            <div id="import-local_computer-fields" style="display: block;">
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.5rem; display: block; font-weight: 500;">Vyber složku z místního počítače *</label>
+                    <div style="position: relative;">
+                        <input type="file" id="local-files-input" webkitdirectory directory multiple style="position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;">
+                        <button type="button" onclick="document.getElementById('local-files-input').click()" style="width: 100%; padding: 0.75rem; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                            <i class="fas fa-folder-open"></i>
+                            <span id="local-folder-button-text">Vybrat složku</span>
+                        </button>
+                    </div>
+                    <small style="color: #7f8c8d; display: block; margin-top: 0.5rem;">
+                        <i class="fas fa-info-circle"></i> Klikni na tlačítko a vyber celou složku projektu z tvého počítače. Nahrány budou všechny soubory včetně podsložek.
+                    </small>
+                    <div id="local-files-preview" style="margin-top: 0.75rem; padding: 0.75rem; background: #f5f5f5; border-radius: 4px; max-height: 200px; overflow-y: auto; display: none; border: 1px solid #e0e0e0;">
+                        <div style="font-size: 0.85rem; color: #2c3e50; font-weight: 500; margin-bottom: 0.5rem;">
+                            <i class="fas fa-check-circle" style="color: #27ae60;"></i> Vybraná složka:
+                        </div>
+                        <div id="local-folder-name" style="font-size: 0.8rem; font-family: monospace; color: #34495e; margin-bottom: 0.5rem; padding: 0.25rem; background: white; border-radius: 2px;"></div>
+                        <div style="font-size: 0.8rem; color: #7f8c8d; margin-bottom: 0.25rem;">Soubory v složce:</div>
+                        <div id="local-files-list" style="font-size: 0.75rem; font-family: monospace; color: #555; max-height: 120px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Folder fields -->
+            <div id="import-folder-fields" style="display: none;">
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Cesta ke složce *</label>
+                    <input type="text" name="source_path" placeholder="/path/to/source" style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0.75rem;">
+                <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Cílová cesta *</label>
+                <input type="text" name="target_path" value="${targetPath}" required style="width: 100%; padding: 0.5rem; font-size: 0.9rem;">
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem;">
+                <button type="button" onclick="app.closeModal()" class="btn btn-secondary" style="padding: 0.5rem 1rem;">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1rem;">Import</button>
+            </div>
+        </form>
+    `;
+
+    app.showModal(importModalHTML);
+
+    // Initialize form - show correct fields based on default selection
+    // Use setTimeout to ensure DOM is ready
+    setTimeout(() => {
+        app.updateImportForm();
+    }, 50);
+};
+
+app.showExportModal = async function(objectId) {
+    const object = await API.getObject(objectId);
+    const folderPath = object.metadata?.folder_path || object.file_path || '/opt/kms';
+
+    const exportModalHTML = `
+        <div style="padding: 1rem;">
+            <h3 style="margin-bottom: 1rem;"><i class="fas fa-file-export"></i> Export Project</h3>
+            <form id="export-form" onsubmit="app.submitExport(event, ${objectId})">
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Zdrojová cesta *</label>
+                    <input type="text" name="source_path" value="${folderPath}" required style="width: 100%; padding: 0.5rem; font-size: 0.9rem; font-family: monospace;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Exportovat na místní počítač</label>
+                    <button type="button" class="btn btn-secondary" onclick="app.selectExportFolder()" style="width: 100%; padding: 0.5rem;">
+                        <i class="fas fa-folder-open"></i> Vyber složku pro export
+                    </button>
+                    <div id="export-folder-selected" style="margin-top: 0.5rem; padding: 0.5rem; background: #f5f7fa; border-radius: 4px; font-size: 0.85rem; display: none;">
+                        <i class="fas fa-folder"></i> <span id="export-folder-name"></span>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">GitHub repozitáře pro commit & push:</label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <input type="checkbox" id="export-github-private" checked style="margin: 0;">
+                        <span>Private GitHub (odooobiznes)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="export-github-public" checked style="margin: 0;">
+                        <span>Public GitHub (it-enterpr)</span>
+                    </label>
+                </div>
+
+                <div style="background: #e8f4f8; padding: 0.75rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 0.85rem;">
+                    <i class="fas fa-info-circle" style="color: #3498db;"></i> Před exportem bude proveden: Backup → Commit → Push na vybrané GitHuby
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem;">
+                    <button type="button" onclick="app.closeModal()" class="btn btn-secondary" style="padding: 0.5rem 1rem;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1rem;">
+                        <i class="fas fa-download"></i> Exportovat
+                    </button>
+                </div>
+            </form>
+        </div>
+    `;
+
+    app.showModal(exportModalHTML);
+    app.state.exportFolderPath = null;
+};
+
+app.showSynchModal = async function(objectId) {
+    const object = await API.getObject(objectId);
+    const folderPath = object.metadata?.folder_path || object.file_path || '/opt/kms';
+
+    const synchModalHTML = `
+        <div style="padding: 1rem;">
+            <h3 style="margin-bottom: 1rem;"><i class="fas fa-sync-alt"></i> Synchronizace</h3>
+            <form id="synch-form" onsubmit="app.submitSynch(event, ${objectId})">
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Cesta na serveru *</label>
+                    <input type="text" name="server_path" value="${folderPath}" required style="width: 100%; padding: 0.5rem; font-size: 0.9rem; font-family: monospace;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Složka na místním počítači</label>
+                    <button type="button" class="btn btn-secondary" onclick="app.selectSynchFolder()" style="width: 100%; padding: 0.5rem;">
+                        <i class="fas fa-folder-open"></i> Vyber složku pro synchronizaci
+                    </button>
+                    <div id="synch-folder-selected" style="margin-top: 0.5rem; padding: 0.5rem; background: #f5f7fa; border-radius: 4px; font-size: 0.85rem; display: none;">
+                        <i class="fas fa-folder"></i> <span id="synch-folder-name"></span>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">GitHub repozitáře pro commit & push:</label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <input type="checkbox" id="synch-github-private" checked style="margin: 0;">
+                        <span>Private GitHub (odooobiznes)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="synch-github-public" checked style="margin: 0;">
+                        <span>Public GitHub (it-enterpr)</span>
+                    </label>
+                </div>
+
+                <div style="background: #e8f4f8; padding: 0.75rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 0.85rem;">
+                    <i class="fas fa-info-circle" style="color: #3498db;"></i> Před synchronizací bude proveden: Backup → Commit → Push na vybrané GitHuby
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem;">
+                    <button type="button" onclick="app.closeModal()" class="btn btn-secondary" style="padding: 0.5rem 1rem;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1rem;">
+                        <i class="fas fa-sync-alt"></i> Synchronizovat
+                    </button>
+                </div>
+            </form>
+        </div>
+    `;
+
+    app.showModal(synchModalHTML);
+    app.state.synchFolderPath = null;
+};
+
+app.selectExportFolder = function() {
+    // Use File System Access API if available, otherwise fallback to input
+    if ('showDirectoryPicker' in window) {
+        window.showDirectoryPicker().then(handle => {
+            app.state.exportFolderPath = handle.name;
+            document.getElementById('export-folder-selected').style.display = 'block';
+            document.getElementById('export-folder-name').textContent = handle.name;
+        }).catch(err => {
+            if (err.name !== 'AbortError') {
+                Components.showToast('Chyba při výběru složky', 'error');
+            }
+        });
+    } else {
+        Components.showToast('Váš prohlížeč nepodporuje výběr složky. Použijte Export API.', 'info');
+    }
+};
+
+app.selectSynchFolder = function() {
+    if ('showDirectoryPicker' in window) {
+        window.showDirectoryPicker().then(handle => {
+            app.state.synchFolderPath = handle.name;
+            document.getElementById('synch-folder-selected').style.display = 'block';
+            document.getElementById('synch-folder-name').textContent = handle.name;
+        }).catch(err => {
+            if (err.name !== 'AbortError') {
+                Components.showToast('Chyba při výběru složky', 'error');
+            }
+        });
+    } else {
+        Components.showToast('Váš prohlížeč nepodporuje výběr složky. Použijte Synch API.', 'info');
+    }
+};
+
+app.submitExport = async function(event, objectId) {
+    event.preventDefault();
+
+    const sourcePath = document.querySelector('#export-form input[name="source_path"]').value;
+    const githubPrivate = document.getElementById('export-github-private').checked;
+    const githubPublic = document.getElementById('export-github-public').checked;
+    const localFolder = app.state.exportFolderPath;
+
+    if (!localFolder) {
+        Components.showToast('Vyberte složku pro export', 'error');
+        return;
+    }
+
+    try {
+        Components.showToast('Exportuji projekt...', 'info');
+        const result = await API.exportProject(objectId, {
+            source_path: sourcePath,
+            local_folder: localFolder,
+            github_private: githubPrivate,
+            github_public: githubPublic
+        });
+        Components.showToast('Projekt úspěšně exportován', 'success');
+        app.closeModal();
+    } catch (error) {
+        console.error('Export error:', error);
+        Components.showToast(`Chyba při exportu: ${error.message}`, 'error');
+    }
+};
+
+app.submitSynch = async function(event, objectId) {
+    event.preventDefault();
+
+    const serverPath = document.querySelector('#synch-form input[name="server_path"]').value;
+    const githubPrivate = document.getElementById('synch-github-private').checked;
+    const githubPublic = document.getElementById('synch-github-public').checked;
+    const localFolder = app.state.synchFolderPath;
+
+    if (!localFolder) {
+        Components.showToast('Vyberte složku pro synchronizaci', 'error');
+        return;
+    }
+
+    try {
+        Components.showToast('Synchronizuji projekt...', 'info');
+        const result = await API.synchProject(objectId, {
+            server_path: serverPath,
+            local_folder: localFolder,
+            github_private: githubPrivate,
+            github_public: githubPublic
+        });
+        Components.showToast('Projekt úspěšně synchronizován', 'success');
+        app.closeModal();
+    } catch (error) {
+        console.error('Synch error:', error);
+        Components.showToast(`Chyba při synchronizaci: ${error.message}`, 'error');
+    }
+};
+
+app.updateImportForm = function() {
+    const sourceType = document.getElementById('import-source-type').value;
+
+    // Hide all field groups
+    ['github', 'gitlab', 'git', 'sftp', 'smb', 'nfs', 'folder', 'local_computer'].forEach(type => {
+        const el = document.getElementById(`import-${type}-fields`);
+        if (el) el.style.display = 'none';
+    });
+
+    // Show relevant fields
+    const el = document.getElementById(`import-${sourceType}-fields`);
+    if (el) el.style.display = 'block';
+
+    // Setup file input listener for local_computer
+    if (sourceType === 'local_computer') {
+        const fileInput = document.getElementById('local-files-input');
+        if (fileInput) {
+            fileInput.onchange = function(e) {
+                const files = Array.from(e.target.files);
+                const preview = document.getElementById('local-files-preview');
+                const list = document.getElementById('local-files-list');
+                const folderName = document.getElementById('local-folder-name');
+                const buttonText = document.getElementById('local-folder-button-text');
+
+                if (files.length > 0) {
+                    // Get folder name from first file's webkitRelativePath
+                    let folderPath = '';
+                    if (files[0].webkitRelativePath) {
+                        folderPath = files[0].webkitRelativePath.split('/')[0];
+                    } else if (fileInput.files[0]) {
+                        // Try to get folder name from file input
+                        folderPath = fileInput.files[0].webkitRelativePath ? fileInput.files[0].webkitRelativePath.split('/')[0] : 'Vybraná složka';
+                    }
+
+                    preview.style.display = 'block';
+                    folderName.textContent = folderPath || 'Vybraná složka';
+                    buttonText.textContent = folderPath ? `Složka: ${folderPath}` : 'Vybrat jinou složku';
+
+                    // Show file tree structure
+                    const fileTree = {};
+                    files.forEach(f => {
+                        const path = f.webkitRelativePath || f.name;
+                        const parts = path.split('/');
+                        let current = fileTree;
+                        parts.forEach((part, index) => {
+                            if (index === parts.length - 1) {
+                                // File
+                                const size = (f.size / 1024).toFixed(1);
+                                current[part] = { type: 'file', size: size };
+                            } else {
+                                // Folder
+                                if (!current[part]) {
+                                    current[part] = { type: 'folder', children: {} };
+                                }
+                                current = current[part].children;
+                            }
+                        });
+                    });
+
+                    // Render file tree
+                    function renderTree(tree, level = 0) {
+                        let html = '';
+                        const entries = Object.entries(tree).sort((a, b) => {
+                            if (a[1].type === 'folder' && b[1].type !== 'folder') return -1;
+                            if (a[1].type !== 'folder' && b[1].type === 'folder') return 1;
+                            return a[0].localeCompare(b[0]);
+                        });
+
+                        entries.slice(0, 30).forEach(([name, item]) => {
+                            const indent = '  '.repeat(level);
+                            if (item.type === 'folder') {
+                                html += `<div style="margin-left: ${level * 10}px; color: #3498db;">
+                                    <i class="fas fa-folder" style="margin-right: 4px;"></i>${name}/
+                                </div>`;
+                                html += renderTree(item.children, level + 1);
+                            } else {
+                                html += `<div style="margin-left: ${level * 10}px; color: #555;">
+                                    <i class="fas fa-file" style="margin-right: 4px; color: #95a5a6;"></i>${name} <span style="color: #7f8c8d;">(${item.size} KB)</span>
+                                </div>`;
+                            }
+                        });
+
+                        if (entries.length > 30) {
+                            html += `<div style="color: #7f8c8d; margin-left: ${level * 10}px;">... a dalších ${entries.length - 30} položek</div>`;
+                        }
+
+                        return html;
+                    }
+
+                    list.innerHTML = renderTree(fileTree);
+
+                    // Show total count
+                    const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+                    const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+                    list.innerHTML += `<div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #e0e0e0; color: #2c3e50; font-weight: 500;">
+                        Celkem: ${files.length} souborů (${totalSizeMB} MB)
+                    </div>`;
+                } else {
+                    preview.style.display = 'none';
+                    buttonText.textContent = 'Vybrat složku';
+                }
+            };
+        }
+    }
+};
+
+app.submitImport = async function(event, objectId) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    const submitBtn = form.querySelector('button[type="submit"]');
+
+    const sourceType = formData.get('source_type');
+    const targetPath = formData.get('target_path');
+
+    // Handle local computer upload separately
+    if (sourceType === 'local_computer') {
+        const fileInput = document.getElementById('local-files-input');
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            Components.showToast('Vyber prosím složku z místního počítače', 'error');
+            return;
+        }
+
+        try {
+            Components.showToast('Nahrávání souborů...', 'info');
+
+            // Create FormData for file upload
+            const uploadFormData = new FormData();
+            uploadFormData.append('target_path', targetPath);
+
+            // Add all files with their relative paths
+            // webkitRelativePath contains the full path from the selected folder root
+            for (let i = 0; i < fileInput.files.length; i++) {
+                const file = fileInput.files[i];
+                // Use webkitRelativePath if available (contains folder structure)
+                // Otherwise use just filename
+                const filePath = file.webkitRelativePath || file.name;
+                uploadFormData.append('files', file, filePath);
+            }
+
+            const response = await API.uploadImportFiles(uploadFormData);
+            Components.showToast(response.message || `Nahráno ${response.files_count} souborů`, 'success');
+            app.closeModal();
+
+            // Reload project if viewing it
+            if (app.state.currentObject && app.state.currentObject.id === objectId) {
+                await app.selectObject(objectId);
+            }
+        } catch (error) {
+            console.error('Error uploading files:', error);
+            const errorMsg = error.message || 'Chyba při nahrávání souborů';
+            Components.showToast(errorMsg, 'error');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-file-import"></i> Importovat';
+            }
+        }
+        return;
+    }
+
+    const importData = {
+        source_type: sourceType,
+        target_path: targetPath,
+        source_path: formData.get('source_path') || ''
+    };
+
+    // Add source-specific fields
+    if (sourceType === 'github') {
+        importData.github_repo = formData.get('github_repo');
+        importData.github_branch = formData.get('github_branch') || 'main';
+    } else if (sourceType === 'gitlab') {
+        importData.gitlab_repo = formData.get('gitlab_repo');
+        importData.gitlab_branch = formData.get('gitlab_branch') || 'main';
+        importData.gitlab_token = formData.get('gitlab_token') || null;
+    } else if (sourceType === 'git') {
+        importData.git_url = formData.get('git_url');
+    } else if (sourceType === 'sftp') {
+        importData.sftp_host = formData.get('sftp_host');
+        importData.sftp_port = parseInt(formData.get('sftp_port')) || 22;
+        importData.sftp_user = formData.get('sftp_user');
+        importData.sftp_password = formData.get('sftp_password');
+        importData.sftp_path = formData.get('sftp_path');
+    } else if (sourceType === 'smb') {
+        importData.smb_share = formData.get('smb_share');
+        importData.smb_user = formData.get('smb_user') || null;
+        importData.smb_password = formData.get('smb_password') || null;
+        importData.network_drive_path = formData.get('smb_share');
+        importData.network_drive_user = formData.get('smb_user') || null;
+        importData.network_drive_password = formData.get('smb_password') || null;
+    } else if (sourceType === 'nfs') {
+        importData.nfs_path = formData.get('nfs_path');
+    }
+
+    try {
+        Components.showToast('Import probíhá...', 'info');
+        const response = await API.importProject(importData);
+        Components.showToast(response.message || 'Import úspěšný', 'success');
+        app.closeModal();
+
+        // Reload project if viewing it
+        if (app.state.currentObject && app.state.currentObject.id === objectId) {
+            await app.selectObject(objectId);
+        }
+    } catch (error) {
+        console.error('Error importing project:', error);
+        const errorMsg = error.message || 'Chyba při importu projektu';
+        Components.showToast(errorMsg, 'error');
+    }
+};
+
+app.openClaudModal = function(objectId) {
+    this.currentClaudeObjectId = objectId;
+    const obj = this.state.currentObject;
+
+    const modal = document.getElementById('modal');
+    const modalBody = document.getElementById('modal-body');
+
+    modalBody.innerHTML = Components.renderClaudeModal(objectId, obj.name);
+    modal.classList.add('show');
+
+    // Load chat history from localStorage
+    const historyKey = `claude-chat-${objectId}`;
+    const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
+    const chatEl = document.getElementById('claude-chat');
+
+    // Clear welcome message if history exists
+    if (history.length > 0) {
+        const welcome = chatEl.querySelector('.claude-welcome');
+        if (welcome) welcome.remove();
+    }
+
+    // Restore history
+    history.forEach(msg => {
+        Components.addClaudeMessage(msg.message, msg.isUser);
+    });
+
+    // Focus on input
+    setTimeout(() => {
+        document.getElementById('claude-input').focus();
+    }, 100);
+
+    // Enter to send
+    document.getElementById('claude-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            this.sendClaudeMessage();
+        }
+    });
+};
+
+app.closeClaudeModal = function() {
+    // Save chat history before closing
+    if (this.currentClaudeObjectId) {
+        const chatEl = document.getElementById('claude-chat');
+        if (chatEl) {
+            const messages = Array.from(chatEl.querySelectorAll('.claude-message'));
+            const history = messages.map(msg => {
+                const isUser = msg.classList.contains('user');
+                const content = msg.querySelector('.message-content');
+                return {
+                    isUser: isUser,
+                    message: content ? content.textContent : ''
+                };
+            }).filter(msg => msg.message.trim() !== '' && !msg.message.includes('Thinking...'));
+
+            const historyKey = `claude-chat-${this.currentClaudeObjectId}`;
+            localStorage.setItem(historyKey, JSON.stringify(history));
+        }
+    }
+
+    this.currentClaudeObjectId = null;
+    this.closeModal();
+};
+
+app.sendClaudeMessage = async function() {
+    const input = document.getElementById('claude-input');
+    const message = input.value.trim();
+
+    if (!message) return;
+
+    // Add user message
+    Components.addClaudeMessage(message, true);
+    input.value = '';
+
+    // Show loading
+    Components.addClaudeMessage('Thinking...', false);
+
+    try {
+        const response = await API.claudeChat(this.currentClaudeObjectId, message);
+
+        // Remove "Thinking..." message
+        const chat = document.getElementById('claude-chat');
+        chat.removeChild(chat.lastChild);
+
+        // Add Claude's response
+        Components.addClaudeMessage(response.response, false);
+
+        // Save to history immediately
+        if (this.currentClaudeObjectId) {
+            const historyKey = `claude-chat-${this.currentClaudeObjectId}`;
+            const chatEl = document.getElementById('claude-chat');
+            const messages = Array.from(chatEl.querySelectorAll('.claude-message'));
+            const history = messages.map(msg => {
+                const isUser = msg.classList.contains('user');
+                const content = msg.querySelector('.message-content');
+                return {
+                    isUser: isUser,
+                    message: content ? content.textContent : ''
+                };
+            }).filter(msg => msg.message.trim() !== '' && !msg.message.includes('Thinking...'));
+            localStorage.setItem(historyKey, JSON.stringify(history));
+        }
+
+    } catch (error) {
+        console.error('Claude error:', error);
+        const chat = document.getElementById('claude-chat');
+        chat.removeChild(chat.lastChild);
+        Components.addClaudeMessage('Sorry, I encountered an error. Please try again.', false);
+    }
+};
+
+// Update selectObject to update tools dropdown
+const originalSelectObject = app.selectObject;
+app.selectObject = async function(objectId) {
+    await originalSelectObject.call(this, objectId);
+
+    // Update tools dropdown if it's open
+    const toolsDropdown = document.getElementById('tools-dropdown');
+    if (toolsDropdown && toolsDropdown.style.display !== 'none') {
+        toolsDropdown.innerHTML = Components.renderToolsDropdown(this.state.currentObject);
+    }
+};

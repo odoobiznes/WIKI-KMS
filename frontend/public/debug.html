@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>KMS Debug</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+        .success { color: #4ec9b0; }
+        .error { color: #f48771; }
+        .info { color: #dcdcaa; }
+        pre { background: #252526; padding: 15px; border-radius: 4px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>KMS API Debug Tool</h1>
+    <p class="info">Testing API endpoints from browser...</p>
+
+    <button onclick="testEndpoint('/api/tools/status', 'GET')">Test Status (GET)</button>
+    <button onclick="testEndpoint('/api/tools/terminal/open', 'POST', {object_id: 1})">Test Terminal (POST)</button>
+    <button onclick="testEndpoint('/api/tools/vscode/open', 'POST', {object_id: 1})">Test VS Code (POST)</button>
+    <button onclick="testEndpoint('/api/tools/claude/chat', 'POST', {object_id: 1, message: 'test', include_context: false})">Test Claude (POST)</button>
+    <button onclick="clearResults()">Clear</button>
+
+    <div id="results"></div>
+
+    <script>
+    const results = document.getElementById('results');
+
+    function clearResults() {
+        results.innerHTML = '';
+    }
+
+    async function testEndpoint(endpoint, method = 'GET', body = null) {
+        const timestamp = new Date().toISOString();
+        const fullUrl = window.location.origin + endpoint;
+
+        results.innerHTML += '<h3 class="info">' + timestamp + ' - Testing: ' + method + ' ' + endpoint + '</h3>';
+        results.innerHTML += '<p>Full URL: ' + fullUrl + '</p>';
+
+        try {
+            const options = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (body) {
+                options.body = JSON.stringify(body);
+                results.innerHTML += '<pre>Request Body:\n' + JSON.stringify(body, null, 2) + '</pre>';
+            }
+
+            const startTime = performance.now();
+            const response = await fetch(fullUrl, options);
+            const endTime = performance.now();
+            const duration = (endTime - startTime).toFixed(2);
+
+            results.innerHTML += '<p>Status: <span class="' + (response.ok ? 'success' : 'error') + '">' +
+                response.status + ' ' + response.statusText + '</span> (' + duration + 'ms)</p>';
+
+            const contentType = response.headers.get('content-type');
+            results.innerHTML += '<p>Content-Type: ' + contentType + '</p>';
+
+            if (contentType && contentType.includes('application/json')) {
+                const data = await response.json();
+                results.innerHTML += '<pre>Response:\n' + JSON.stringify(data, null, 2) + '</pre>';
+            } else {
+                const text = await response.text();
+                results.innerHTML += '<pre>Response:\n' + text.substring(0, 500) + '</pre>';
+            }
+
+            results.innerHTML += '<hr>';
+
+        } catch (error) {
+            results.innerHTML += '<p class="error">ERROR: ' + error.message + '</p>';
+            results.innerHTML += '<pre>' + error.stack + '</pre>';
+            results.innerHTML += '<hr>';
+        }
+
+        window.scrollTo(0, document.body.scrollHeight);
+    }
+
+    // Auto-test on load
+    window.onload = () => {
+        results.innerHTML += '<h2 class="info">Browser Info:</h2>';
+        results.innerHTML += '<p>User Agent: ' + navigator.userAgent + '</p>';
+        results.innerHTML += '<p>Current URL: ' + window.location.href + '</p>';
+        results.innerHTML += '<p>Origin: ' + window.location.origin + '</p>';
+        results.innerHTML += '<hr>';
+    };
+    </script>
+</body>
+</html>

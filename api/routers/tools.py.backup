@@ -1,0 +1,2000 @@
+"""
+KMS Tools Router - API endpoints for integrated development tools
+Provides access to:
+- Web Terminal (ttyd)
+- File Browser
+- VS Code (code-server)
+- Windsurf Editor
+- Cursor Editor
+- Claude AI
+"""
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Form, Request
+from pydantic import BaseModel
+from typing import Optional, Dict, Any, List
+import os
+import logging
+import subprocess
+import socket
+import requests
+
+# Configure logger for tools router
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+logger.info("=" * 80)
+logger.info("Tools Router Initializing")
+logger.info("=" * 80)
+
+from database import get_db_cursor
+from routers.tools_claude import chat_with_claude
+
+router = APIRouter(prefix="/tools", tags=["tools"])
+logger.info("Tools router created successfully")
+
+# === Enhanced Helper Functions for Debugging ===
+
+def log_environment():
+    """Log relevant environment variables for debugging"""
+    logger.debug("=== ENVIRONMENT VARIABLES ===")
+    env_vars = ['PATH', 'HOME', 'USER', 'DISPLAY', 'XDG_RUNTIME_DIR', 'ANTHROPIC_API_KEY']
+    for var in env_vars:
+        value = os.environ.get(var, 'NOT SET')
+        if var == 'ANTHROPIC_API_KEY' and value != 'NOT SET':
+            value = f"{value[:10]}..." if len(value) > 10 else "***"
+        logger.debug(f"  {var}={value}")
+
+def check_port_open(host: str, port: int, timeout: float = 2.0) -> bool:
+    """Check if a port is open and accepting connections"""
+    logger.debug(f"Checking port: {host}:{port}")
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        is_open = result == 0
+        logger.debug(f"  Port {host}:{port} is {'OPEN' if is_open else 'CLOSED'} (result={result})")
+        return is_open
+    except Exception as e:
+        logger.warning(f"  Port check failed for {host}:{port}: {e}")
+        return False
+
+def check_url_accessible(url: str, timeout: float = 3.0) -> tuple[bool, int, str]:
+    """Check if a URL is accessible"""
+    logger.debug(f"Checking URL accessibility: {url}")
+    try:
+        response = requests.get(url, timeout=timeout, allow_redirects=True, verify=False)
+        logger.debug(f"  URL {url} returned status {response.status_code}")
+        return True, response.status_code, "OK"
+    except requests.exceptions.Timeout:
+        logger.warning(f"  URL {url} timed out after {timeout}s")
+        return False, 0, "Timeout"
+    except requests.exceptions.ConnectionError as e:
+        logger.warning(f"  URL {url} connection failed: {e}")
+        return False, 0, f"Connection error: {e}"
+    except Exception as e:
+        logger.warning(f"  URL {url} check failed: {e}")
+        return False, 0, f"Error: {e}"
+
+def check_command_exists(command: str) -> tuple[bool, str]:
+    """Check if a command exists in PATH"""
+    logger.debug(f"Checking if command exists: {command}")
+    try:
+        result = subprocess.run(
+            ["which", command],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        exists = result.returncode == 0
+        path = result.stdout.strip() if exists else ""
+        logger.debug(f"  Command '{command}' {'found at ' + path if exists else 'NOT FOUND'}")
+        return exists, path
+    except Exception as e:
+        logger.warning(f"  Failed to check command '{command}': {e}")
+        return False, ""
+
+# Log environment on module load
+log_environment()
+
+
+# === Pydantic Models ===
+
+class ToolOpenRequest(BaseModel):
+    """Request to open a tool for a specific object"""
+    object_id: int
+    folder: Optional[str] = None  # Optional subfolder (plany, instrukce, code, docs)
+
+
+class ToolOpenResponse(BaseModel):
+    """Response with URL to open tool"""
+    url: str
+    tool_name: str
+    project_name: str
+    project_path: str
+
+
+class ClaudeChatRequest(BaseModel):
+    """Request to chat with Claude AI"""
+    object_id: int
+    message: str
+    include_context: bool = True
+
+
+class ClaudeChatResponse(BaseModel):
+    """Response from Claude AI"""
+    response: str
+    project_name: str
+    context_files_count: int
+
+
+# === Helper Functions ===
+
+def get_object_path(object_id: int) -> tuple[str, str, str]:
+    """Get object name and file path from database"""
+    logger.debug(f"get_object_path: Looking up object_id={object_id}")
+    try:
+        with get_db_cursor() as (cur, conn):
+            cur.execute("""
+                SELECT o.name, o.file_path, o.metadata, c.slug
+                FROM objects o
+                JOIN categories c ON o.category_id = c.id
+                WHERE o.id = %s
+            """, (object_id,))
+
+            result = cur.fetchone()
+            if not result:
+                logger.warning(f"get_object_path: Object {object_id} not found in database")
+                raise HTTPException(status_code=404, detail=f"Object {object_id} not found")
+
+            # Check if metadata contains folder_path, use it if available
+            file_path = result['file_path']
+            metadata = result.get('metadata')
+            if metadata:
+                if isinstance(metadata, str):
+                    import json
+                    try:
+                        metadata = json.loads(metadata)
+                    except:
+                        metadata = {}
+
+                if isinstance(metadata, dict) and metadata.get('folder_path'):
+                    # Use folder_path from metadata if it exists
+                    folder_path = metadata['folder_path']
+                    logger.debug(f"get_object_path: Using folder_path from metadata: {folder_path}")
+                    # Return folder_path as-is (it's already absolute)
+                    return (result['name'], folder_path, result['slug'])
+
+            logger.debug(f"get_object_path: Found object - name={result['name']}, path={result['file_path']}, slug={result['slug']}")
+            return (result['name'], result['file_path'], result['slug'])
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_object_path: Database error for object_id={object_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+def get_full_path(file_path: str) -> str:
+    """Convert relative file path to absolute path, or return absolute path as-is"""
+    logger.debug(f"get_full_path: Converting path={file_path}")
+
+    # Check if path is already absolute
+    if os.path.isabs(file_path):
+        full_path = Path(file_path)
+        logger.debug(f"get_full_path: Path is already absolute: {full_path}")
+    else:
+        # Relative path - prepend base path
+        base_path = Path("/opt/kms")
+        full_path = base_path / file_path
+        logger.debug(f"get_full_path: Converted relative path to: {full_path}")
+
+    if not full_path.exists():
+        logger.error(f"get_full_path: Path does not exist: {full_path}")
+        logger.debug(f"get_full_path: Checking if parent exists: {full_path.parent.exists()}")
+        logger.debug(f"get_full_path: Listing parent directory: {list(full_path.parent.iterdir()) if full_path.parent.exists() else 'parent does not exist'}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Project path does not exist: {full_path}"
+        )
+
+    logger.info(f"get_full_path: Valid path found: {full_path}")
+    return str(full_path)
+
+
+# === Terminal Endpoints ===
+
+@router.post("/terminal/open", response_model=ToolOpenResponse)
+def open_terminal(request: ToolOpenRequest):
+    """
+    Open web terminal for a project
+
+    Terminal opens in the project directory or specified subfolder.
+    Credentials: devops / kms2025
+    """
+    logger.info(f"🖥️  TERMINAL OPEN REQUEST: object_id={request.object_id}, folder={request.folder}")
+
+    try:
+        # Check if ttyd service is running
+        logger.debug("Checking ttyd service status...")
+        port_open = check_port_open("localhost", 7681)
+        logger.info(f"  ttyd port 7681: {'AVAILABLE' if port_open else 'NOT AVAILABLE'}")
+
+        name, file_path, category_slug = get_object_path(request.object_id)
+        logger.debug(f"Terminal: Retrieved object info - name={name}, file_path={file_path}, category={category_slug}")
+
+        full_path = get_full_path(file_path)
+        logger.debug(f"Terminal: Full path resolved - {full_path}")
+        logger.debug(f"Terminal: Path exists check: {os.path.exists(full_path)}")
+        logger.debug(f"Terminal: Path is directory: {os.path.isdir(full_path)}")
+
+        # Add subfolder if specified
+        if request.folder:
+            full_path = str(Path(full_path) / request.folder)
+            logger.debug(f"Terminal: Subfolder added - {full_path}")
+            logger.debug(f"Terminal: Subfolder exists: {os.path.exists(full_path)}")
+
+        # ttyd URL with project path
+        # We'll use a wrapper that injects cd command via JavaScript
+        encoded_path = full_path.replace("/", "%2F")
+        terminal_url = f"https://kms.it-enterprise.solutions/terminal-wrapper.html?cd={encoded_path}"
+        logger.debug(f"Terminal: Generated URL - {terminal_url} (will cd to {full_path})")
+
+        # Verify URL is accessible
+        accessible, status, msg = check_url_accessible(terminal_url)
+        logger.info(f"  Terminal URL accessibility: {msg} (status={status})")
+
+        response = ToolOpenResponse(
+            url=terminal_url,
+            tool_name="Web Terminal",
+            project_name=name,
+            project_path=full_path
+        )
+
+        logger.info(f"✓ Terminal opened successfully for '{name}' at {full_path}")
+        logger.debug(f"  Response: {response.model_dump()}")
+        return response
+    except Exception as e:
+        logger.error(f"✗ Terminal open failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise
+
+
+# === File Browser Endpoints ===
+
+@router.post("/files/open", response_model=ToolOpenResponse)
+def open_file_browser(request: ToolOpenRequest):
+    """
+    Open file browser for a project
+
+    Allows upload, download, preview, and basic file editing.
+    """
+    logger.info(f"📁 FILE BROWSER OPEN REQUEST: object_id={request.object_id}, folder={request.folder}")
+
+    try:
+        # Check if filebrowser service is running
+        logger.debug("Checking filebrowser service status...")
+        port_open = check_port_open("localhost", 8082)
+        logger.info(f"  filebrowser port 8082: {'AVAILABLE' if port_open else 'NOT AVAILABLE'}")
+
+        name, file_path, category_slug = get_object_path(request.object_id)
+        logger.debug(f"FileBrowser: Retrieved object info - name={name}, file_path={file_path}, category={category_slug}")
+
+        full_path = get_full_path(file_path)
+        logger.debug(f"FileBrowser: Full path resolved - {full_path}")
+        logger.debug(f"FileBrowser: Path exists: {os.path.exists(full_path)}")
+
+        # Add subfolder if specified
+        if request.folder:
+            full_path = str(Path(full_path) / request.folder)
+            logger.debug(f"FileBrowser: Subfolder added - {full_path}")
+            logger.debug(f"FileBrowser: Subfolder exists: {os.path.exists(full_path)}")
+
+        # FileBrowser URL (will be proxied through Nginx)
+        # Encode path for URL
+        encoded_path = file_path.replace("/", "%2F")
+        files_url = f"https://kms.it-enterprise.solutions/tools/files/?path={encoded_path}"
+        logger.debug(f"FileBrowser: Generated URL - {files_url}")
+
+        # Verify URL is accessible
+        accessible, status, msg = check_url_accessible(files_url)
+        logger.info(f"  FileBrowser URL accessibility: {msg} (status={status})")
+
+        response = ToolOpenResponse(
+            url=files_url,
+            tool_name="File Browser",
+            project_name=name,
+            project_path=full_path
+        )
+
+        logger.info(f"✓ File Browser opened successfully for '{name}' at {full_path}")
+        logger.debug(f"  Response: {response.model_dump()}")
+        return response
+    except Exception as e:
+        logger.error(f"✗ File Browser open failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise
+
+
+# === File List Endpoint ===
+
+@router.get("/files/list")
+def list_files(
+    path: str = Query(..., description="Path to folder to list"),
+    allow_any: bool = Query(False, description="Allow any path (not just /opt/kms)"),
+    use_sudo: bool = Query(False, description="Use sudo for file operations")
+):
+    """
+    List files and directories in a given path
+    """
+    import os
+    import subprocess
+    import json
+    from pathlib import Path
+
+    try:
+        # Convert use_sudo to boolean if it's a string
+        if isinstance(use_sudo, str):
+            use_sudo = use_sudo.lower() in ('true', '1', 'yes', 'on')
+
+        # Convert use_sudo to boolean if it's a string
+        if isinstance(use_sudo, str):
+            use_sudo = use_sudo.lower() in ('true', '1', 'yes', 'on')
+
+        logger.debug(f"Listing files for path: {path}, allow_any: {allow_any}, use_sudo: {use_sudo} (type: {type(use_sudo)})")
+
+        full_path = Path(path).resolve()
+
+        # Security: By default only allow paths within /opt/kms, unless allow_any is True
+        # But if use_sudo is True, we can access any path (sudo bypasses permission checks)
+        if not allow_any and not use_sudo:
+            kms_base = Path("/opt/kms").resolve()
+            if not str(full_path).startswith(str(kms_base)):
+                logger.warning(f"Path {full_path} is not within {kms_base}")
+                raise HTTPException(status_code=403, detail=f"Path must be within /opt/kms. Got: {full_path}. Use allow_any=true to access other paths.")
+
+        # If use_sudo is True, use sudo to list files
+        if use_sudo:
+            try:
+                # Use sudo with ls to list files
+                result = subprocess.run(
+                    ['sudo', 'ls', '-la', str(full_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+
+                if result.returncode != 0:
+                    logger.warning(f"Sudo ls failed: {result.stderr}")
+                    # Fall back to regular method
+                    use_sudo = False
+                else:
+                    # Parse ls output
+                    files = []
+                    lines = result.stdout.strip().split('\n')
+                    for line in lines[1:]:  # Skip first line (total)
+                        parts = line.split()
+                        if len(parts) < 9:
+                            continue
+                        name = ' '.join(parts[8:])  # Handle names with spaces
+                        is_dir = parts[0].startswith('d')
+                        item_path = full_path / name
+
+                        try:
+                            if use_sudo:
+                                # Get stat with sudo
+                                stat_result = subprocess.run(
+                                    ['sudo', 'stat', '-c', '%s %Y', str(item_path)],
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=5
+                                )
+                                if stat_result.returncode == 0:
+                                    size_str, mtime_str = stat_result.stdout.strip().split()
+                                    size = int(size_str) if not is_dir else None
+                                    mtime = float(mtime_str)
+                                else:
+                                    size = None
+                                    mtime = 0
+                            else:
+                                stat = item_path.stat()
+                                size = stat.st_size if not is_dir else None
+                                mtime = stat.st_mtime
+
+                            files.append({
+                                "name": name,
+                                "path": str(item_path),
+                                "type": "directory" if is_dir else "file",
+                                "size": size,
+                                "modified": mtime
+                            })
+                        except Exception as e:
+                            logger.debug(f"Skipping {name} due to error: {e}")
+                            continue
+
+                    files.sort(key=lambda x: (x["type"] != "directory", x["name"].lower()))
+                    logger.info(f"Successfully listed {len(files)} items from {full_path} using sudo")
+                    return {"files": files, "path": str(full_path)}
+            except subprocess.TimeoutExpired:
+                logger.warning("Sudo command timed out, falling back to regular method")
+                use_sudo = False
+            except Exception as e:
+                logger.warning(f"Sudo failed: {e}, falling back to regular method")
+                use_sudo = False
+
+        # Regular method (without sudo)
+        try:
+            logger.debug(f"Resolved path: {full_path}")
+            logger.debug(f"Path exists: {full_path.exists()}")
+            logger.debug(f"Path is_dir: {full_path.is_dir() if full_path.exists() else 'N/A'}")
+
+            if not full_path.exists():
+                logger.warning(f"Path does not exist: {full_path}")
+                raise HTTPException(status_code=404, detail=f"Path does not exist: {full_path}")
+
+            if not full_path.is_dir():
+                logger.warning(f"Path is not a directory: {full_path}")
+                raise HTTPException(status_code=400, detail=f"Path must be a directory: {full_path}")
+
+            files = []
+            for item in sorted(full_path.iterdir()):
+                try:
+                    stat = item.stat()
+                    files.append({
+                        "name": item.name,
+                        "path": str(item),
+                        "type": "directory" if item.is_dir() else "file",
+                        "size": stat.st_size if item.is_file() else None,
+                        "modified": stat.st_mtime
+                    })
+                except (OSError, PermissionError) as e:
+                    # Skip files we can't access
+                    logger.debug(f"Skipping {item.name} due to access error: {e}")
+                    continue
+
+            logger.info(f"Successfully listed {len(files)} items from {full_path}")
+            return {"files": files, "path": str(full_path)}
+        except (OSError, PermissionError) as e:
+            # If regular method fails due to permissions and use_sudo was requested, try sudo again
+            if use_sudo:
+                logger.info(f"Regular method failed with permission error, retrying with sudo: {e}")
+                try:
+                    result = subprocess.run(
+                        ['sudo', 'ls', '-la', str(full_path)],
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
+
+                    if result.returncode == 0:
+                        # Parse ls output (same as above)
+                        files = []
+                        lines = result.stdout.strip().split('\n')
+                        for line in lines[1:]:  # Skip first line (total)
+                            parts = line.split()
+                            if len(parts) < 9:
+                                continue
+                            name = ' '.join(parts[8:])
+                            is_dir = parts[0].startswith('d')
+                            item_path = full_path / name
+
+                            try:
+                                stat_result = subprocess.run(
+                                    ['sudo', 'stat', '-c', '%s %Y', str(item_path)],
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=5
+                                )
+                                if stat_result.returncode == 0:
+                                    size_str, mtime_str = stat_result.stdout.strip().split()
+                                    size = int(size_str) if not is_dir else None
+                                    mtime = float(mtime_str)
+                                else:
+                                    size = None
+                                    mtime = 0
+
+                                files.append({
+                                    "name": name,
+                                    "path": str(item_path),
+                                    "type": "directory" if is_dir else "file",
+                                    "size": size,
+                                    "modified": mtime
+                                })
+                            except Exception as e2:
+                                logger.debug(f"Skipping {name} due to error: {e2}")
+                                continue
+
+                        files.sort(key=lambda x: (x["type"] != "directory", x["name"].lower()))
+                        logger.info(f"Successfully listed {len(files)} items from {full_path} using sudo (retry)")
+                        return {"files": files, "path": str(full_path)}
+                except Exception as e2:
+                    logger.error(f"Sudo retry also failed: {e2}")
+
+            # If all methods fail, raise permission error
+            logger.error(f"Permission denied accessing {full_path}: {e}")
+            raise HTTPException(status_code=403, detail=f"Permission denied: {e}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing files: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error listing files: {str(e)}")
+
+
+@router.get("/files/download")
+def download_file(
+    path: str = Query(..., description="Path to file to download"),
+    allow_any: bool = Query(False, description="Allow any path (not just /opt/kms)"),
+    use_sudo: bool = Query(False, description="Use sudo for file operations")
+):
+    """
+    Download or read a file from the server
+
+    Returns file content with appropriate Content-Type header.
+    For text files, returns content directly.
+    For binary files, returns as download with Content-Disposition header.
+    """
+    import os
+    import subprocess
+    import mimetypes
+    from pathlib import Path
+    from fastapi.responses import FileResponse, Response
+
+    try:
+        logger.debug(f"Downloading file: {path}, allow_any: {allow_any}, use_sudo: {use_sudo}")
+
+        full_path = Path(path).resolve()
+
+        # Security: By default only allow paths within /opt/kms, unless allow_any is True
+        if not allow_any and not use_sudo:
+            kms_base = Path("/opt/kms").resolve()
+            if not str(full_path).startswith(str(kms_base)):
+                logger.warning(f"Path {full_path} is not within {kms_base}")
+                raise HTTPException(status_code=403, detail=f"Path must be within /opt/kms. Got: {full_path}. Use allow_any=true to access other paths.")
+
+        # Check if file exists
+        file_exists = False
+        if use_sudo:
+            try:
+                result = subprocess.run(
+                    ['sudo', 'test', '-f', str(full_path)],
+                    capture_output=True,
+                    timeout=5
+                )
+                file_exists = (result.returncode == 0)
+            except Exception as e:
+                logger.debug(f"Sudo test failed: {e}")
+                file_exists = False
+        else:
+            file_exists = full_path.is_file()
+
+        if not file_exists:
+            raise HTTPException(status_code=404, detail=f"File not found: {full_path}")
+
+        # Determine MIME type
+        mime_type, _ = mimetypes.guess_type(str(full_path))
+        if not mime_type:
+            mime_type = 'application/octet-stream'
+
+        # Check if it's a text file (for inline display)
+        text_extensions = {'.txt', '.json', '.xml', '.html', '.css', '.js', '.py', '.md', '.yml', '.yaml', '.sh', '.sql', '.log', '.conf', '.ini', '.env', '.gitignore', '.dockerfile', '.dockerignore'}
+        is_text_file = full_path.suffix.lower() in text_extensions or mime_type.startswith('text/')
+
+        # For text files, read and return content
+        if is_text_file:
+            try:
+                if use_sudo:
+                    result = subprocess.run(
+                        ['sudo', 'cat', str(full_path)],
+                        capture_output=True,
+                        text=True,
+                        timeout=30
+                    )
+                    if result.returncode != 0:
+                        raise HTTPException(status_code=500, detail=f"Error reading file: {result.stderr}")
+                    content = result.stdout
+                else:
+                    with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
+                        content = f.read()
+
+                return Response(
+                    content=content,
+                    media_type=mime_type,
+                    headers={
+                        "Content-Disposition": f'inline; filename="{full_path.name}"'
+                    }
+                )
+            except UnicodeDecodeError:
+                # If UTF-8 fails, try binary
+                if use_sudo:
+                    result = subprocess.run(
+                        ['sudo', 'cat', str(full_path)],
+                        capture_output=True,
+                        timeout=30
+                    )
+                    if result.returncode != 0:
+                        raise HTTPException(status_code=500, detail=f"Error reading file: {result.stderr}")
+                    content = result.stdout
+                else:
+                    with open(full_path, 'rb') as f:
+                        content = f.read()
+
+                return Response(
+                    content=content,
+                    media_type=mime_type,
+                    headers={
+                        "Content-Disposition": f'attachment; filename="{full_path.name}"'
+                    }
+                )
+        else:
+            # For binary files, use FileResponse (handles streaming)
+            if use_sudo:
+                # For sudo, we need to copy to temp location first
+                import tempfile
+                import shutil
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=full_path.suffix)
+                temp_path = temp_file.name
+                temp_file.close()
+
+                try:
+                    result = subprocess.run(
+                        ['sudo', 'cp', str(full_path), temp_path],
+                        capture_output=True,
+                        timeout=30
+                    )
+                    if result.returncode != 0:
+                        raise HTTPException(status_code=500, detail=f"Error copying file: {result.stderr}")
+
+                    return FileResponse(
+                        temp_path,
+                        media_type=mime_type,
+                        filename=full_path.name,
+                        headers={
+                            "Content-Disposition": f'attachment; filename="{full_path.name}"'
+                        }
+                    )
+                except Exception as e:
+                    if os.path.exists(temp_path):
+                        os.unlink(temp_path)
+                    raise
+            else:
+                return FileResponse(
+                    str(full_path),
+                    media_type=mime_type,
+                    filename=full_path.name,
+                    headers={
+                        "Content-Disposition": f'attachment; filename="{full_path.name}"'
+                    }
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading file: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
+
+
+@router.post("/files/create-folder")
+def create_folder(
+    path: str = Query(..., description="Path to new folder to create"),
+    allow_any: bool = Query(False, description="Allow any path (not just /opt/kms)"),
+    use_sudo: bool = Query(False, description="Use sudo for folder creation")
+):
+    """
+    Create a new folder at the specified path
+    """
+    import os
+    import subprocess
+    from pathlib import Path
+
+    try:
+        logger.debug(f"Creating folder: {path}, allow_any: {allow_any}, use_sudo: {use_sudo}")
+
+        full_path = Path(path).resolve()
+
+        # Security: By default only allow paths within /opt/kms, unless allow_any is True
+        if not allow_any:
+            kms_base = Path("/opt/kms").resolve()
+            if not str(full_path).startswith(str(kms_base)):
+                logger.warning(f"Path {full_path} is not within {kms_base}")
+                raise HTTPException(status_code=403, detail=f"Path must be within /opt/kms. Got: {full_path}. Use allow_any=true to create folders elsewhere.")
+
+        # Check if folder already exists
+        if full_path.exists():
+            if full_path.is_dir():
+                logger.info(f"Folder already exists: {full_path}")
+                return {"path": str(full_path), "created": False, "message": "Folder already exists"}
+            else:
+                raise HTTPException(status_code=400, detail=f"Path exists but is not a directory: {full_path}")
+
+        # Create folder - use sudo if requested
+        if use_sudo:
+            try:
+                # Use sudo to create folder
+                result = subprocess.run(
+                    ['sudo', 'mkdir', '-p', str(full_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+
+                if result.returncode != 0:
+                    logger.warning(f"Sudo mkdir failed: {result.stderr}")
+                    raise HTTPException(status_code=500, detail=f"Failed to create folder with sudo: {result.stderr}")
+
+                logger.info(f"Successfully created folder with sudo: {full_path}")
+                return {"path": str(full_path), "created": True, "message": "Folder created successfully"}
+            except subprocess.TimeoutExpired:
+                logger.error("Sudo command timed out")
+                raise HTTPException(status_code=500, detail="Command timed out")
+            except Exception as e:
+                logger.error(f"Sudo failed: {e}, trying regular method")
+                # Fall back to regular method
+                use_sudo = False
+
+        if not use_sudo:
+            # Regular folder creation - try first, fallback to sudo on PermissionError
+            try:
+                # Check if parent directory exists
+                parent = full_path.parent
+                if not parent.exists():
+                    raise HTTPException(status_code=404, detail=f"Parent directory does not exist: {parent}")
+
+                if not parent.is_dir():
+                    raise HTTPException(status_code=400, detail=f"Parent is not a directory: {parent}")
+
+                # Create folder
+                full_path.mkdir(parents=True, exist_ok=False)
+                logger.info(f"Successfully created folder: {full_path}")
+            except PermissionError:
+                # If permission denied, automatically retry with sudo
+                logger.info(f"Permission denied, retrying with sudo: {full_path}")
+                try:
+                    result = subprocess.run(
+                        ['sudo', 'mkdir', '-p', str(full_path)],
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
+
+                    if result.returncode != 0:
+                        logger.warning(f"Sudo mkdir failed: {result.stderr}")
+                        raise HTTPException(status_code=500, detail=f"Failed to create folder with sudo: {result.stderr}")
+
+                    logger.info(f"Successfully created folder with sudo (auto-retry): {full_path}")
+                except subprocess.TimeoutExpired:
+                    logger.error("Sudo command timed out")
+                    raise HTTPException(status_code=500, detail="Command timed out")
+                except Exception as e:
+                    logger.error(f"Sudo failed: {e}")
+                    raise HTTPException(status_code=403, detail=f"Permission denied: {str(e)}")
+
+        return {"path": str(full_path), "created": True, "message": "Folder created successfully"}
+    except HTTPException:
+        raise
+    except PermissionError as e:
+        logger.error(f"Permission denied creating folder: {e}")
+        # If use_sudo was requested but failed, suggest retry
+        if use_sudo:
+            raise HTTPException(status_code=403, detail=f"Permission denied even with sudo: {str(e)}")
+        raise HTTPException(status_code=403, detail=f"Permission denied: {str(e)}. Try use_sudo=true")
+    except Exception as e:
+        logger.error(f"Error creating folder: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error creating folder: {str(e)}")
+
+
+# === Git Operations ===
+
+class GitOperationRequest(BaseModel):
+    object_id: int
+    operation: str  # "pull", "push", "commit", "status"
+    message: Optional[str] = None  # For commit
+    branch: Optional[str] = None  # For push/pull
+    remote: Optional[str] = None  # Remote name (default: origin)
+
+
+@router.post("/git/operation")
+def git_operation(request: GitOperationRequest):
+    """
+    Perform Git operations (pull, push, commit, status)
+    """
+    import subprocess
+    from pathlib import Path
+
+    try:
+        logger.info(f"Git operation: {request.operation} for object_id={request.object_id}")
+
+        # Get project path
+        name, file_path, category_slug = get_object_path(request.object_id)
+        full_path = get_full_path(file_path)
+
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail=f"Project path does not exist: {full_path}")
+
+        # Check if it's a git repository, if not initialize it
+        git_dir = Path(full_path) / ".git"
+        if not git_dir.exists():
+            # Initialize Git repository
+            logger.info(f"Initializing Git repository in {full_path}")
+            init_result = subprocess.run(
+                ["git", "-C", str(full_path), "init"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if init_result.returncode != 0:
+                raise HTTPException(status_code=500, detail=f"Failed to initialize Git repository: {init_result.stderr}")
+
+            # Create initial commit
+            add_result = subprocess.run(
+                ["git", "-C", str(full_path), "add", "."],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            if add_result.returncode == 0:
+                commit_result = subprocess.run(
+                    ["git", "-C", str(full_path), "commit", "-m", "Initial commit"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                logger.info(f"Git repository initialized and initial commit created")
+
+        result = None
+        output = ""
+        error = ""
+
+        if request.operation == "status":
+            # Get git status
+            result = subprocess.run(
+                ["git", "-C", str(full_path), "status", "--porcelain", "-b"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            output = result.stdout
+            error = result.stderr
+
+        elif request.operation == "pull":
+            # Git pull
+            branch = request.branch or "main"
+            remote = request.remote or "origin"
+            result = subprocess.run(
+                ["git", "-C", str(full_path), "pull", remote, branch],
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            output = result.stdout
+            error = result.stderr
+
+        elif request.operation == "push":
+            # Git push
+            branch = request.branch or "main"
+            remote = request.remote or "origin"
+            result = subprocess.run(
+                ["git", "-C", str(full_path), "push", remote, branch],
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            output = result.stdout
+            error = result.stderr
+
+        elif request.operation == "commit":
+            # Git commit (requires message)
+            if not request.message:
+                raise HTTPException(status_code=400, detail="Commit message is required")
+
+            # First add all changes
+            add_result = subprocess.run(
+                ["git", "-C", str(full_path), "add", "-A"],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+
+            if add_result.returncode != 0:
+                raise HTTPException(status_code=500, detail=f"Git add failed: {add_result.stderr}")
+
+            # Then commit
+            result = subprocess.run(
+                ["git", "-C", str(full_path), "commit", "-m", request.message],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            output = result.stdout
+            error = result.stderr
+
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown Git operation: {request.operation}")
+
+        if result and result.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"Git {request.operation} failed: {error or output}")
+
+        return {
+            "success": True,
+            "operation": request.operation,
+            "output": output,
+            "message": f"Git {request.operation} completed successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error performing Git operation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error performing Git operation: {str(e)}")
+
+
+# === Import Endpoints ===
+
+class ImportRequest(BaseModel):
+    source_type: str  # "folder", "sftp", "github", "gitlab", "git", "network_drive", "smb", "nfs"
+    source_path: str  # Path to source
+    target_path: str  # Path where to import
+    github_repo: Optional[str] = None  # For GitHub: user/repo
+    github_branch: Optional[str] = None  # For GitHub: branch name
+    gitlab_repo: Optional[str] = None  # For GitLab: user/repo or full URL
+    gitlab_branch: Optional[str] = None  # For GitLab: branch name
+    gitlab_token: Optional[str] = None  # For GitLab: access token
+    git_url: Optional[str] = None  # For Git: repository URL
+    sftp_host: Optional[str] = None  # For SFTP: hostname
+    sftp_port: Optional[int] = None  # For SFTP: port
+    sftp_user: Optional[str] = None  # For SFTP: username
+    sftp_password: Optional[str] = None  # For SFTP: password
+    sftp_path: Optional[str] = None  # For SFTP: remote path
+    network_drive_path: Optional[str] = None  # For network drive: //server/share/path
+    network_drive_user: Optional[str] = None  # For network drive: username
+    network_drive_password: Optional[str] = None  # For network drive: password
+    smb_share: Optional[str] = None  # For SMB: //server/share
+    smb_user: Optional[str] = None  # For SMB: username
+    smb_password: Optional[str] = None  # For SMB: password
+    nfs_path: Optional[str] = None  # For NFS: server:/path
+
+
+@router.post("/import/upload")
+async def import_upload_files(
+    target_path: str = Form(...),
+    files: List[UploadFile] = File(...)
+):
+    """
+    Upload files from local computer (browser) to server
+
+    This endpoint receives files selected from user's local computer
+    and saves them to the target path on the server.
+
+    Note: For large file uploads, uvicorn must be started with --limit-max-requests option
+    to increase the default 1MB limit. Example: --limit-max-requests 524288000 (500MB)
+    """
+    import os
+    import subprocess
+    from pathlib import Path
+
+    try:
+        logger.info(f"Upload import request: {len(files)} files -> {target_path}")
+
+        target_dir = Path(target_path).resolve()
+
+        # Ensure target directory exists - use sudo if needed
+        if not target_dir.exists():
+            try:
+                target_dir.mkdir(parents=True, exist_ok=True)
+            except PermissionError:
+                # Try with sudo
+                logger.info(f"Permission denied, creating directory with sudo: {target_dir}")
+                result = subprocess.run(
+                    ['sudo', 'mkdir', '-p', str(target_dir)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode != 0:
+                    raise HTTPException(status_code=500, detail=f"Failed to create target directory: {result.stderr}")
+
+        if not target_dir.is_dir():
+            raise HTTPException(status_code=400, detail=f"Target path is not a directory: {target_dir}")
+
+        uploaded_files = []
+        total_size = 0
+
+        for file in files:
+            # Get relative path from file
+            # For directory uploads, browser sends relative path in filename
+            file_path = file.filename
+
+            # If filename contains path separators, use it as relative path
+            # Otherwise, it's just a filename in root
+            if '/' in file_path or '\\' in file_path:
+                # Normalize path separators
+                file_path = file_path.replace('\\', '/')
+                # Remove leading slash
+                if file_path.startswith('/'):
+                    file_path = file_path[1:]
+            else:
+                # Just filename, put in root
+                file_path = file_path
+
+            # Create full target path
+            target_file = target_dir / file_path
+
+            # Ensure parent directory exists - use sudo if needed
+            try:
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+            except PermissionError:
+                # Try with sudo
+                logger.debug(f"Permission denied, creating parent directory with sudo: {target_file.parent}")
+                result = subprocess.run(
+                    ['sudo', 'mkdir', '-p', str(target_file.parent)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode != 0:
+                    logger.warning(f"Failed to create parent directory: {result.stderr}")
+
+            # Read file content
+            content = await file.read()
+            file_size = len(content)
+            total_size += file_size
+
+            # Write file - use sudo if needed
+            try:
+                with open(target_file, 'wb') as f:
+                    f.write(content)
+            except PermissionError:
+                # Try with sudo
+                logger.debug(f"Permission denied, writing file with sudo: {target_file}")
+                # Write to temp file first, then move with sudo
+                import tempfile
+                with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                    tmp.write(content)
+                    tmp_path = tmp.name
+
+                result = subprocess.run(
+                    ['sudo', 'cp', tmp_path, str(target_file)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                os.unlink(tmp_path)  # Clean up temp file
+
+                if result.returncode != 0:
+                    raise HTTPException(status_code=500, detail=f"Failed to write file: {result.stderr}")
+
+            uploaded_files.append({
+                "path": str(target_file),
+                "size": file_size
+            })
+
+            logger.debug(f"Uploaded: {file_path} -> {target_file} ({file_size} bytes)")
+
+        logger.info(f"Successfully uploaded {len(uploaded_files)} files ({total_size} bytes total)")
+
+        return {
+            "success": True,
+            "message": f"Uploaded {len(uploaded_files)} files to {target_path}",
+            "files_count": len(uploaded_files),
+            "total_size": total_size,
+            "files": uploaded_files
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading files: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error uploading files: {str(e)}")
+
+
+@router.post("/import")
+def import_project(request: ImportRequest):
+    """
+    Import project from various sources (folder, SFTP, GitHub, GitLab, Git)
+    """
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    try:
+        logger.info(f"Import request: {request.source_type} -> {request.target_path}")
+
+        target_path = Path(request.target_path).resolve()
+
+        # Ensure target directory exists
+        if not target_path.exists():
+            target_path.mkdir(parents=True, exist_ok=True)
+
+        if not target_path.is_dir():
+            raise HTTPException(status_code=400, detail=f"Target path is not a directory: {target_path}")
+
+        if request.source_type == "folder":
+            # Copy from local folder
+            source_path = Path(request.source_path).resolve()
+            if not source_path.exists():
+                raise HTTPException(status_code=404, detail=f"Source path does not exist: {source_path}")
+
+            if source_path.is_dir():
+                # Copy directory contents
+                for item in source_path.iterdir():
+                    dest = target_path / item.name
+                    if item.is_dir():
+                        shutil.copytree(item, dest, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(item, dest)
+            else:
+                # Copy single file
+                shutil.copy2(source_path, target_path / source_path.name)
+
+            return {"success": True, "message": f"Imported from {source_path} to {target_path}"}
+
+        elif request.source_type in ["github", "gitlab", "git"]:
+            # Clone Git repository
+            repo_url = None
+            if request.source_type == "github":
+                repo_url = f"https://github.com/{request.github_repo}.git"
+                branch = request.github_branch or "main"
+            elif request.source_type == "gitlab":
+                # Support both GitLab.com and self-hosted GitLab
+                if request.gitlab_repo.startswith("http"):
+                    repo_url = request.gitlab_repo
+                else:
+                    repo_url = f"https://gitlab.com/{request.gitlab_repo}.git"
+
+                branch = request.gitlab_branch or "main"
+
+                # Use token if provided
+                if request.gitlab_token:
+                    # Insert token into URL
+                    if "://" in repo_url:
+                        repo_url = repo_url.replace("://", f"://oauth2:{request.gitlab_token}@")
+            else:  # git
+                repo_url = request.git_url
+                branch = "main"
+
+            if not repo_url:
+                raise HTTPException(status_code=400, detail="Repository URL is required")
+
+            # Clone repository
+            clone_cmd = ["git", "clone", "-b", branch, repo_url, str(target_path)]
+            result = subprocess.run(
+                clone_cmd,
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+
+            if result.returncode != 0:
+                raise HTTPException(status_code=500, detail=f"Git clone failed: {result.stderr}")
+
+            return {"success": True, "message": f"Cloned {repo_url} to {target_path}"}
+
+        elif request.source_type in ["network_drive", "smb"]:
+            # Import from network drive (SMB/CIFS)
+            import shutil
+
+            source_path = request.network_drive_path or request.smb_share
+            if not source_path:
+                raise HTTPException(status_code=400, detail="Network drive path is required")
+
+            # Mount point for network drive
+            mount_point = Path("/tmp/kms_network_mount") / Path(source_path).name
+            mount_point.mkdir(parents=True, exist_ok=True)
+
+            try:
+                # Mount SMB share
+                mount_cmd = ["sudo", "mount", "-t", "cifs", source_path, str(mount_point)]
+                if request.smb_user or request.network_drive_user:
+                    user = request.smb_user or request.network_drive_user
+                    password = request.smb_password or request.network_drive_password
+                    mount_cmd.extend(["-o", f"username={user},password={password}"])
+
+                mount_result = subprocess.run(mount_cmd, capture_output=True, text=True, timeout=30)
+
+                if mount_result.returncode != 0:
+                    raise HTTPException(status_code=500, detail=f"Failed to mount network drive: {mount_result.stderr}")
+
+                # Copy files
+                source_dir = mount_point
+                if request.source_path and request.source_path != source_path:
+                    source_dir = mount_point / request.source_path.lstrip("/")
+
+                if source_dir.exists() and source_dir.is_dir():
+                    for item in source_dir.iterdir():
+                        dest = target_path / item.name
+                        if item.is_dir():
+                            shutil.copytree(item, dest, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(item, dest)
+                else:
+                    raise HTTPException(status_code=404, detail=f"Source path does not exist: {source_dir}")
+
+            finally:
+                # Unmount
+                try:
+                    subprocess.run(["sudo", "umount", str(mount_point)], timeout=10)
+                except:
+                    pass
+
+            return {"success": True, "message": f"Imported from network drive {source_path} to {target_path}"}
+
+        elif request.source_type == "nfs":
+            # Import from NFS share
+            import shutil
+
+            if not request.nfs_path:
+                raise HTTPException(status_code=400, detail="NFS path is required (format: server:/path)")
+
+            mount_point = Path("/tmp/kms_nfs_mount") / Path(request.nfs_path.split(":")[-1]).name
+            mount_point.mkdir(parents=True, exist_ok=True)
+
+            try:
+                # Mount NFS
+                mount_result = subprocess.run(
+                    ["sudo", "mount", "-t", "nfs", request.nfs_path, str(mount_point)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+
+                if mount_result.returncode != 0:
+                    raise HTTPException(status_code=500, detail=f"Failed to mount NFS: {mount_result.stderr}")
+
+                # Copy files
+                source_dir = mount_point
+                if request.source_path:
+                    source_dir = mount_point / request.source_path.lstrip("/")
+
+                if source_dir.exists() and source_dir.is_dir():
+                    for item in source_dir.iterdir():
+                        dest = target_path / item.name
+                        if item.is_dir():
+                            shutil.copytree(item, dest, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(item, dest)
+                else:
+                    raise HTTPException(status_code=404, detail=f"Source path does not exist: {source_dir}")
+
+            finally:
+                # Unmount
+                try:
+                    subprocess.run(["sudo", "umount", str(mount_point)], timeout=10)
+                except:
+                    pass
+
+            return {"success": True, "message": f"Imported from NFS {request.nfs_path} to {target_path}"}
+
+        elif request.source_type == "sftp":
+            # SFTP import (requires paramiko)
+            try:
+                import paramiko
+            except ImportError:
+                raise HTTPException(status_code=503, detail="SFTP support requires paramiko library")
+
+            # Connect to SFTP server
+            transport = paramiko.Transport((request.sftp_host, request.sftp_port or 22))
+            transport.connect(username=request.sftp_user, password=request.sftp_password)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+
+            try:
+                # Download files recursively
+                def download_dir(remote_path, local_path):
+                    for item in sftp.listdir_attr(remote_path):
+                        remote_item = f"{remote_path}/{item.filename}"
+                        local_item = local_path / item.filename
+
+                        if item.st_mode & 0o040000:  # Directory
+                            local_item.mkdir(exist_ok=True)
+                            download_dir(remote_item, local_item)
+                        else:  # File
+                            sftp.get(remote_item, str(local_item))
+
+                download_dir(request.sftp_path, target_path)
+            finally:
+                sftp.close()
+                transport.close()
+
+            return {"success": True, "message": f"Imported from SFTP {request.sftp_host}{request.sftp_path} to {target_path}"}
+
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown source type: {request.source_type}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error importing project: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error importing project: {str(e)}")
+
+
+# === Export & Synch Endpoints ===
+
+class ExportRequest(BaseModel):
+    object_id: int
+    source_path: str
+    local_folder: str  # Folder name selected in browser (will be used for download)
+    github_private: bool = True  # Push to private GitHub (odooobiznes)
+    github_public: bool = True  # Push to public GitHub (it-enterpr)
+
+
+class SynchRequest(BaseModel):
+    object_id: int
+    server_path: str
+    local_folder: str  # Folder name selected in browser
+    github_private: bool = True  # Push to private GitHub (odooobiznes)
+    github_public: bool = True  # Push to public GitHub (it-enterpr)
+
+
+def create_backup_and_commit_push(full_path: str, github_private: bool, github_public: bool):
+    """
+    Helper function to create backup, commit and push to selected GitHub repositories
+    """
+    import subprocess
+    import shutil
+    from datetime import datetime
+    from pathlib import Path
+    import logging
+
+    try:
+        # 1. Create backup
+        backup_dir = Path(full_path).parent / f".backups"
+        backup_dir.mkdir(exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_name = f"{Path(full_path).name}_backup_{timestamp}"
+        backup_path = backup_dir / backup_name
+
+        logger.info(f"Creating backup: {backup_path}")
+        shutil.copytree(full_path, backup_path, ignore=shutil.ignore_patterns('.git', '.backups', '__pycache__', '*.pyc'))
+        logger.info(f"Backup created: {backup_path}")
+
+        # 2. Check if it's a git repository, if not initialize it
+        git_dir = Path(full_path) / ".git"
+        if not git_dir.exists():
+            logger.info(f"Initializing Git repository in {full_path}")
+            init_result = subprocess.run(
+                ["git", "-C", str(full_path), "init"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if init_result.returncode != 0:
+                logger.warning(f"Failed to initialize Git repository: {init_result.stderr}")
+                return {"backup_created": True, "git_operations": False, "git_initialized": False}
+
+            # Create initial commit
+            add_result = subprocess.run(
+                ["git", "-C", str(full_path), "add", "."],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            if add_result.returncode == 0:
+                commit_result = subprocess.run(
+                    ["git", "-C", str(full_path), "commit", "-m", "Initial commit"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                logger.info(f"Git repository initialized and initial commit created")
+
+        # 3. Add all changes
+        add_result = subprocess.run(
+            ["git", "-C", str(full_path), "add", "-A"],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        if add_result.returncode != 0:
+            logger.warning(f"Git add failed: {add_result.stderr}")
+            return {"backup_created": True, "git_operations": False}
+
+        # 4. Commit
+        commit_message = f"Auto backup and sync - {timestamp}"
+        commit_result = subprocess.run(
+            ["git", "-C", str(full_path), "commit", "-m", commit_message],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        if commit_result.returncode != 0:
+            logger.warning(f"Git commit failed (may be no changes): {commit_result.stderr}")
+
+        # 5. Push to selected remotes
+        pushed_remotes = []
+        if github_private:
+            try:
+                push_result = subprocess.run(
+                    ["git", "-C", str(full_path), "push", "odooobiznes", "main"],
+                    capture_output=True,
+                    text=True,
+                    timeout=300
+                )
+                if push_result.returncode == 0:
+                    pushed_remotes.append("odooobiznes (private)")
+                else:
+                    logger.warning(f"Push to odooobiznes failed: {push_result.stderr}")
+            except Exception as e:
+                logger.warning(f"Error pushing to odooobiznes: {e}")
+
+        if github_public:
+            try:
+                push_result = subprocess.run(
+                    ["git", "-C", str(full_path), "push", "it-enterpr", "main"],
+                    capture_output=True,
+                    text=True,
+                    timeout=300
+                )
+                if push_result.returncode == 0:
+                    pushed_remotes.append("it-enterpr (public)")
+                else:
+                    logger.warning(f"Push to it-enterpr failed: {push_result.stderr}")
+            except Exception as e:
+                logger.warning(f"Error pushing to it-enterpr: {e}")
+
+        return {
+            "backup_created": True,
+            "backup_path": str(backup_path),
+            "git_operations": True,
+            "committed": commit_result.returncode == 0,
+            "pushed_remotes": pushed_remotes
+        }
+
+    except Exception as e:
+        logger.error(f"Error in backup/commit/push: {e}", exc_info=True)
+        return {"backup_created": False, "error": str(e)}
+
+
+@router.post("/export")
+def export_project(request: ExportRequest):
+    """
+    Export project from server to local computer
+
+    Before export:
+    1. Create backup
+    2. Commit changes
+    3. Push to selected GitHub repositories
+
+    Then prepare files for download (zip archive)
+    """
+    import subprocess
+    import shutil
+    import tempfile
+    import zipfile
+    from pathlib import Path
+    from datetime import datetime
+    from fastapi.responses import FileResponse
+
+    try:
+        logger.info(f"Export request: object_id={request.object_id}, source_path={request.source_path}")
+
+        # Get project path
+        name, file_path, category_slug = get_object_path(request.object_id)
+        full_path = get_full_path(request.source_path)
+
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail=f"Source path does not exist: {full_path}")
+
+        # 1. Create backup, commit and push
+        backup_result = create_backup_and_commit_push(
+            full_path,
+            request.github_private,
+            request.github_public
+        )
+        logger.info(f"Backup/commit/push result: {backup_result}")
+
+        # 2. Create zip archive
+        temp_dir = tempfile.mkdtemp()
+        zip_filename = f"{Path(full_path).name}_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        zip_path = Path(temp_dir) / zip_filename
+
+        logger.info(f"Creating zip archive: {zip_path}")
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(full_path):
+                # Skip .git and .backups
+                dirs[:] = [d for d in dirs if d not in ['.git', '.backups', '__pycache__']]
+                for file in files:
+                    if file.endswith('.pyc'):
+                        continue
+                    file_path = Path(root) / file
+                    arcname = file_path.relative_to(full_path)
+                    zipf.write(file_path, arcname)
+
+        logger.info(f"Zip archive created: {zip_path}")
+
+        # Return file for download
+        return FileResponse(
+            str(zip_path),
+            media_type="application/zip",
+            filename=zip_filename,
+            headers={
+                "Content-Disposition": f'attachment; filename="{zip_filename}"'
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error exporting project: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error exporting project: {str(e)}")
+
+
+@router.post("/synch")
+def synch_project(request: SynchRequest):
+    """
+    Synchronize project between server and local computer
+
+    Before synch:
+    1. Create backup
+    2. Commit changes
+    3. Push to selected GitHub repositories
+
+    Then compare and sync files (server -> local or local -> server based on timestamps)
+    """
+    import subprocess
+    from pathlib import Path
+
+    try:
+        logger.info(f"Synch request: object_id={request.object_id}, server_path={request.server_path}")
+
+        # Get project path
+        name, file_path, category_slug = get_object_path(request.object_id)
+        full_path = get_full_path(request.server_path)
+
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail=f"Server path does not exist: {full_path}")
+
+        # 1. Create backup, commit and push
+        backup_result = create_backup_and_commit_push(
+            full_path,
+            request.github_private,
+            request.github_public
+        )
+        logger.info(f"Backup/commit/push result: {backup_result}")
+
+        # 2. For now, return info that synch needs to be done via file browser
+        # In future, can implement actual file comparison and sync
+        return {
+            "success": True,
+            "message": "Backup, commit and push completed. Use file browser to manually sync files.",
+            "backup_result": backup_result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error synchronizing project: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error synchronizing project: {str(e)}")
+
+
+# === VS Code Endpoints ===
+
+@router.post("/vscode/open", response_model=ToolOpenResponse)
+def open_vscode(request: ToolOpenRequest):
+    """
+    Open VS Code (code-server) for a project
+
+    Full VS Code experience in browser with extensions support.
+    Password: kms2025
+    """
+    logger.info(f"💻 VS CODE OPEN REQUEST: object_id={request.object_id}, folder={request.folder}")
+
+    try:
+        # Check if code-server service is running
+        logger.debug("Checking code-server service status...")
+        port_open = check_port_open("localhost", 8443)
+        logger.info(f"  code-server port 8443: {'AVAILABLE' if port_open else 'NOT AVAILABLE'}")
+
+        name, file_path, category_slug = get_object_path(request.object_id)
+        logger.debug(f"VSCode: Retrieved object info - name={name}, file_path={file_path}, category={category_slug}")
+
+        full_path = get_full_path(file_path)
+        logger.debug(f"VSCode: Full path resolved - {full_path}")
+        logger.debug(f"VSCode: Path exists: {os.path.exists(full_path)}")
+
+        # Add subfolder if specified
+        if request.folder:
+            full_path = str(Path(full_path) / request.folder)
+            logger.debug(f"VSCode: Subfolder added - {full_path}")
+            logger.debug(f"VSCode: Subfolder exists: {os.path.exists(full_path)}")
+
+        # code-server URL (will be proxied through Nginx)
+        vscode_url = f"https://kms.it-enterprise.solutions/tools/vscode/?folder={full_path}"
+        logger.debug(f"VSCode: Generated URL - {vscode_url}")
+
+        # Verify URL is accessible
+        accessible, status, msg = check_url_accessible(vscode_url)
+        logger.info(f"  VSCode URL accessibility: {msg} (status={status})")
+
+        response = ToolOpenResponse(
+            url=vscode_url,
+            tool_name="VS Code",
+            project_name=name,
+            project_path=full_path
+        )
+
+        logger.info(f"✓ VS Code opened successfully for '{name}' at {full_path}")
+        logger.debug(f"  Response: {response.model_dump()}")
+        return response
+    except Exception as e:
+        logger.error(f"✗ VS Code open failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise
+
+
+# === Windsurf Editor Endpoints ===
+
+@router.post("/windsurf/open", response_model=ToolOpenResponse)
+def open_windsurf(request: ToolOpenRequest):
+    """
+    Open Windsurf Editor for a project
+
+    Windsurf is an AI-powered code editor.
+    Opens directly on the desktop (not in browser).
+    """
+    logger.info(f"🌊 WINDSURF OPEN REQUEST: object_id={request.object_id}, folder={request.folder}")
+
+    try:
+        # Check if Windsurf command exists
+        exists, windsurf_path = check_command_exists("windsurf")
+        logger.info(f"  Windsurf command: {'FOUND at ' + windsurf_path if exists else 'NOT FOUND'}")
+
+        if not exists:
+            logger.error("Windsurf is not installed or not in PATH")
+            raise HTTPException(status_code=503, detail="Windsurf editor is not installed")
+
+        name, file_path, category_slug = get_object_path(request.object_id)
+        logger.debug(f"Windsurf: Retrieved object info - name={name}, file_path={file_path}, category={category_slug}")
+
+        full_path = get_full_path(file_path)
+        logger.debug(f"Windsurf: Full path resolved - {full_path}")
+        logger.debug(f"Windsurf: Path exists: {os.path.exists(full_path)}")
+
+        # Add subfolder if specified
+        if request.folder:
+            full_path = str(Path(full_path) / request.folder)
+            logger.debug(f"Windsurf: Subfolder added - {full_path}")
+            logger.debug(f"Windsurf: Subfolder exists: {os.path.exists(full_path)}")
+
+        # Launch Windsurf in background
+        # Set up environment for GUI application
+        env = os.environ.copy()
+
+        # Detect DISPLAY from running X sessions
+        display = ":10"  # Default to :10 for devops user
+        xdg_runtime_dir = "/run/user/1000"
+
+        # Check if X10 socket exists
+        if os.path.exists("/tmp/.X11-unix/X10"):
+            display = ":10"
+            logger.debug(f"Windsurf: Found X10 socket, using DISPLAY={display}")
+        elif os.path.exists("/tmp/.X11-unix/X0"):
+            display = ":0"
+            logger.debug(f"Windsurf: Found X0 socket, using DISPLAY={display}")
+        else:
+            logger.warning(f"Windsurf: No X socket found, using default DISPLAY={display}")
+
+        env["DISPLAY"] = display
+        env["XDG_RUNTIME_DIR"] = xdg_runtime_dir
+
+        logger.debug(f"Windsurf: Launching command - {windsurf_path} {full_path}")
+        logger.debug(f"Windsurf: Environment - DISPLAY={env['DISPLAY']}, XDG_RUNTIME_DIR={env['XDG_RUNTIME_DIR']}")
+
+        try:
+            result = subprocess.Popen(
+                [windsurf_path, full_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+                start_new_session=True
+            )
+            logger.info(f"  Windsurf launched successfully (PID: {result.pid})")
+            logger.debug(f"  Command: {windsurf_path} {full_path} with DISPLAY={display}")
+
+            # Wait a bit and check if process is still running
+            import time
+            time.sleep(0.5)
+            poll_result = result.poll()
+            if poll_result is not None:
+                # Process exited
+                stderr_output = result.stderr.read().decode('utf-8', errors='replace')
+                stdout_output = result.stdout.read().decode('utf-8', errors='replace')
+                logger.error(f"  Windsurf process exited immediately with code {poll_result}")
+                logger.error(f"  STDERR: {stderr_output[:500]}")
+                logger.error(f"  STDOUT: {stdout_output[:500]}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Windsurf crashed immediately (exit code {poll_result}). Check logs for details."
+                )
+            else:
+                logger.info(f"  Windsurf process still running after 0.5s - likely successful")
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"  Failed to launch Windsurf: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to launch Windsurf: {str(e)}")
+
+        response = ToolOpenResponse(
+            url=f"windsurf://open?path={full_path}",
+            tool_name="Windsurf Editor",
+            project_name=name,
+            project_path=full_path
+        )
+
+        logger.info(f"✓ Windsurf opened successfully for '{name}' at {full_path}")
+        logger.debug(f"  Response: {response.model_dump()}")
+        return response
+    except Exception as e:
+        logger.error(f"✗ Windsurf open failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise
+
+
+# === Cursor Editor Endpoints ===
+
+@router.post("/cursor/open", response_model=ToolOpenResponse)
+def open_cursor(request: ToolOpenRequest):
+    """
+    Open Cursor Editor for a project
+
+    Cursor is an AI-powered code editor based on VS Code.
+    Opens directly on the desktop (not in browser).
+    """
+    logger.info(f"🎯 CURSOR OPEN REQUEST: object_id={request.object_id}, folder={request.folder}")
+
+    try:
+        # Check if Cursor command exists
+        exists, cursor_path = check_command_exists("cursor")
+        logger.info(f"  Cursor command: {'FOUND at ' + cursor_path if exists else 'NOT FOUND'}")
+
+        if not exists:
+            logger.error("Cursor is not installed or not in PATH")
+            raise HTTPException(status_code=503, detail="Cursor editor is not installed")
+
+        name, file_path, category_slug = get_object_path(request.object_id)
+        logger.debug(f"Cursor: Retrieved object info - name={name}, file_path={file_path}, category={category_slug}")
+
+        full_path = get_full_path(file_path)
+        logger.debug(f"Cursor: Full path resolved - {full_path}")
+        logger.debug(f"Cursor: Path exists: {os.path.exists(full_path)}")
+
+        # Add subfolder if specified
+        if request.folder:
+            full_path = str(Path(full_path) / request.folder)
+            logger.debug(f"Cursor: Subfolder added - {full_path}")
+            logger.debug(f"Cursor: Subfolder exists: {os.path.exists(full_path)}")
+
+        # Launch Cursor in background
+        # Set up environment for GUI application
+        env = os.environ.copy()
+
+        # Detect DISPLAY from running X sessions
+        display = ":10"  # Default to :10 for devops user
+        xdg_runtime_dir = "/run/user/1000"
+
+        # Check if X10 socket exists
+        if os.path.exists("/tmp/.X11-unix/X10"):
+            display = ":10"
+            logger.debug(f"Cursor: Found X10 socket, using DISPLAY={display}")
+        elif os.path.exists("/tmp/.X11-unix/X0"):
+            display = ":0"
+            logger.debug(f"Cursor: Found X0 socket, using DISPLAY={display}")
+        else:
+            logger.warning(f"Cursor: No X socket found, using default DISPLAY={display}")
+
+        env["DISPLAY"] = display
+        env["XDG_RUNTIME_DIR"] = xdg_runtime_dir
+
+        logger.debug(f"Cursor: Launching command - {cursor_path} {full_path}")
+        logger.debug(f"Cursor: Environment - DISPLAY={env['DISPLAY']}, XDG_RUNTIME_DIR={env['XDG_RUNTIME_DIR']}")
+
+        try:
+            result = subprocess.Popen(
+                [cursor_path, full_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+                start_new_session=True
+            )
+            logger.info(f"  Cursor launched successfully (PID: {result.pid})")
+            logger.debug(f"  Command: {cursor_path} {full_path} with DISPLAY={display}")
+
+            # Wait a bit and check if process is still running
+            import time
+            time.sleep(0.5)
+            poll_result = result.poll()
+            if poll_result is not None:
+                # Process exited
+                stderr_output = result.stderr.read().decode('utf-8', errors='replace')
+                stdout_output = result.stdout.read().decode('utf-8', errors='replace')
+                logger.error(f"  Cursor process exited immediately with code {poll_result}")
+                logger.error(f"  STDERR: {stderr_output[:500]}")
+                logger.error(f"  STDOUT: {stdout_output[:500]}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Cursor crashed immediately (exit code {poll_result}). Check logs for details."
+                )
+            else:
+                logger.info(f"  Cursor process still running after 0.5s - likely successful")
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"  Failed to launch Cursor: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to launch Cursor: {str(e)}")
+
+        response = ToolOpenResponse(
+            url=f"cursor://open?path={full_path}",
+            tool_name="Cursor Editor",
+            project_name=name,
+            project_path=full_path
+        )
+
+        logger.info(f"✓ Cursor opened successfully for '{name}' at {full_path}")
+        logger.debug(f"  Response: {response.model_dump()}")
+        return response
+    except Exception as e:
+        logger.error(f"✗ Cursor open failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise
+
+
+# === Claude AI Endpoints ===
+
+@router.post("/claude/chat", response_model=ClaudeChatResponse)
+async def claude_chat(request: ClaudeChatRequest):
+    """
+    Chat with Claude AI with project context
+
+    Claude will have access to project structure and files (if include_context=True).
+    Requires ANTHROPIC_API_KEY environment variable.
+    """
+    logger.info(f"🤖 CLAUDE CHAT REQUEST: object_id={request.object_id}, include_context={request.include_context}")
+    logger.debug(f"Claude: Message preview - {request.message[:100]}...")
+
+    try:
+        name, file_path, category_slug = get_object_path(request.object_id)
+        logger.debug(f"Claude: Retrieved object info - name={name}, file_path={file_path}")
+
+        full_path = get_full_path(file_path)
+        logger.debug(f"Claude: Full path resolved - {full_path}")
+
+        # Use actual Claude API integration
+        logger.debug(f"Claude: Calling chat_with_claude...")
+        response_text, context_files_count = await chat_with_claude(
+            project_name=name,
+            project_path=full_path,
+            user_message=request.message,
+            include_context=request.include_context
+        )
+
+        logger.info(f"✓ Claude chat completed successfully - {context_files_count} files in context")
+
+        return ClaudeChatResponse(
+            response=response_text,
+            project_name=name,
+            context_files_count=context_files_count
+        )
+    except Exception as e:
+        logger.error(f"✗ Claude chat failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise
+
+
+@router.get("/claude/models")
+def list_claude_models():
+    """List available Claude models"""
+    return {
+        "models": [
+            {
+                "id": "claude-sonnet-4-5-20250929",
+                "name": "Claude Sonnet 4.5",
+                "description": "Latest Sonnet model, fastest",
+                "max_tokens": 200000
+            },
+            {
+                "id": "claude-opus-4-5-20251101",
+                "name": "Claude Opus 4.5",
+                "description": "Most capable model",
+                "max_tokens": 200000
+            }
+        ]
+    }
+
+
+# === Tool Status Endpoint ===
+
+@router.get("/status")
+def get_tools_status():
+    """Get status of all integrated tools"""
+    logger.info("📊 TOOLS STATUS REQUEST")
+
+    def check_service(service_name: str) -> dict:
+        logger.debug(f"Checking service: {service_name}")
+        try:
+            result = subprocess.run(
+                ["systemctl", "is-active", service_name],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            is_active = result.stdout.strip() == "active"
+            status = "running" if is_active else "stopped"
+            logger.debug(f"Service {service_name}: {status} (output: {result.stdout.strip()})")
+            return {"service": service_name, "status": status}
+        except Exception as e:
+            logger.warning(f"Failed to check service {service_name}: {e}")
+            return {"service": service_name, "status": "unknown"}
+
+    def check_editor_installed(command: str, editor_name: str) -> dict:
+        logger.debug(f"Checking if {editor_name} is installed...")
+        exists, path = check_command_exists(command)
+        status = {
+            "installed": exists,
+            "path": path if exists else None,
+            "status": "available" if exists else "not installed"
+        }
+        logger.debug(f"{editor_name}: {status}")
+        return status
+
+    # Check port availability
+    logger.debug("Checking port availability...")
+    port_7681 = check_port_open("localhost", 7681)
+    port_8082 = check_port_open("localhost", 8082)
+    port_8443 = check_port_open("localhost", 8443)
+    logger.info(f"  Ports: ttyd(7681)={'OPEN' if port_7681 else 'CLOSED'}, filebrowser(8082)={'OPEN' if port_8082 else 'CLOSED'}, code-server(8443)={'OPEN' if port_8443 else 'CLOSED'}")
+
+    tools_status = {
+        "tools": [
+            {
+                "name": "Web Terminal",
+                "service": check_service("kms-tools-ttyd"),
+                "port": 7681,
+                "port_open": port_7681,
+                "url": "/tools/terminal/",
+                "type": "web"
+            },
+            {
+                "name": "File Browser",
+                "service": check_service("kms-tools-filebrowser"),
+                "port": 8082,
+                "port_open": port_8082,
+                "url": "/tools/files/",
+                "type": "web"
+            },
+            {
+                "name": "VS Code (code-server)",
+                "service": check_service("kms-tools-code-server"),
+                "port": 8443,
+                "port_open": port_8443,
+                "url": "/tools/vscode/",
+                "type": "web"
+            },
+            {
+                "name": "Windsurf Editor",
+                "editor": check_editor_installed("windsurf", "Windsurf"),
+                "port": None,
+                "url": "/api/tools/windsurf/open",
+                "type": "desktop"
+            },
+            {
+                "name": "Cursor Editor",
+                "editor": check_editor_installed("cursor", "Cursor"),
+                "port": None,
+                "url": "/api/tools/cursor/open",
+                "type": "desktop"
+            },
+            {
+                "name": "Zed Editor",
+                "editor": check_editor_installed("zed", "Zed"),
+                "port": None,
+                "url": "/api/tools/zed/open",
+                "type": "desktop"
+            },
+            {
+                "name": "Claude AI",
+                "service": {"service": "claude-api", "status": "api-based"},
+                "port": None,
+                "url": "/api/tools/claude/chat",
+                "type": "api"
+            }
+        ]
+    }
+
+    logger.info("✓ Tools status check completed")
+    logger.debug(f"  Status summary: {len(tools_status['tools'])} tools checked")
+    return tools_status

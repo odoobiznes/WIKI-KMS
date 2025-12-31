@@ -1,0 +1,16 @@
+# KMS API Requirements
+
+# FastAPI and server
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# Database
+psycopg2-binary==2.9.10
+
+# Data validation
+pydantic==2.10.5
+pydantic-settings==2.7.1
+
+# Utilities
+python-dotenv==1.0.1

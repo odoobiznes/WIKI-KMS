@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>KMS Tools Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>KMS Tools API Test</h1>
+    <button onclick="testAPI()">Test All Endpoints</button>
+    <div id="results"></div>
+
+    <script>
+    const results = document.getElementById('results');
+
+    async function testAPI() {
+        results.innerHTML = '<p>Testing API endpoints...</p>';
+
+        try {
+            // Test terminal
+            const terminalResp = await fetch('/api/tools/terminal/open', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({object_id: 1})
+            });
+            const terminalData = await terminalResp.json();
+            results.innerHTML += '<p class="success">Terminal: OK - ' + terminalData.url + '</p>';
+
+            // Test VS Code
+            const vscodeResp = await fetch('/api/tools/vscode/open', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({object_id: 1})
+            });
+            const vscodeData = await vscodeResp.json();
+            results.innerHTML += '<p class="success">VS Code: OK - ' + vscodeData.url + '</p>';
+
+            // Test Files
+            const filesResp = await fetch('/api/tools/files/open', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({object_id: 1})
+            });
+            const filesData = await filesResp.json();
+            results.innerHTML += '<p class="success">Files: OK - ' + filesData.url + '</p>';
+
+            // Test Claude
+            const claudeResp = await fetch('/api/tools/claude/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({object_id: 1, message: 'test', include_context: false})
+            });
+            const claudeData = await claudeResp.json();
+            results.innerHTML += '<p class="success">Claude: OK - Response length: ' + claudeData.response.length + '</p>';
+
+            results.innerHTML += '<h2 class="success">All tests passed!</h2>';
+
+        } catch (error) {
+            results.innerHTML += '<p class="error">Error: ' + error.message + '</p>';
+            console.error('Test error:', error);
+        }
+    }
+
+    // Auto-run on load
+    window.onload = testAPI;
+    </script>
+</body>
+</html>
