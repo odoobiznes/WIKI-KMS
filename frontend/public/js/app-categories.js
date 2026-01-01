@@ -15,8 +15,8 @@ const AppCategories = {
             const categories = await API.getCategories();
             StateManager.setCategories(categories);
             Components.renderCategoriesTree(
-                categories, 
-                StateManager.getCurrentFilter(), 
+                categories,
+                StateManager.getCurrentFilter(),
                 StateManager.getExpandedCategories()
             );
         } catch (error) {
@@ -31,8 +31,8 @@ const AppCategories = {
     filterCategories(filter) {
         StateManager.setCurrentFilter(filter);
         Components.renderCategoriesTree(
-            StateManager.getCategories(), 
-            filter, 
+            StateManager.getCategories(),
+            filter,
             StateManager.getExpandedCategories()
         );
 
@@ -65,10 +65,7 @@ const AppCategories = {
 
                 const categoryItem = document.querySelector(`[data-category-id="${id}"]`);
                 if (categoryItem) {
-                    const expandIcon = categoryItem.querySelector('.tree-expand-icon');
-                    if (expandIcon) {
-                        expandIcon.className = 'fas fa-chevron-right tree-expand-icon';
-                    }
+                    categoryItem.classList.remove('expanded');
                     const childrenDiv = categoryItem.querySelector(`[data-category-children="${id}"]`);
                     if (childrenDiv) {
                         childrenDiv.style.display = 'none';
@@ -80,14 +77,14 @@ const AppCategories = {
         const isExpanded = !wasExpanded;
         StateManager.setExpanded(categoryId, isExpanded);
 
-        // Update icon
         const categoryItem = document.querySelector(`[data-category-id="${categoryId}"]`);
         if (categoryItem) {
-            const expandIcon = categoryItem.querySelector('.tree-expand-icon');
             const childrenDiv = categoryItem.querySelector(`[data-category-children="${categoryId}"]`);
 
-            if (expandIcon) {
-                expandIcon.className = `fas fa-chevron-${isExpanded ? 'down' : 'right'} tree-expand-icon`;
+            if (isExpanded) {
+                categoryItem.classList.add('expanded');
+            } else {
+                categoryItem.classList.remove('expanded');
             }
 
             if (childrenDiv) {
@@ -123,17 +120,29 @@ const AppCategories = {
                     html += `
                         <div class="tree-item subcategory-item" data-subcategory-id="${sub.id}">
                             <div class="tree-item-content" onclick="app.toggleSubcategory(${sub.id})">
-                                <i class="fas fa-chevron-right tree-expand-icon"></i>
                                 <i class="${iconClass} tree-item-icon"></i>
                                 <span class="tree-item-label">${sub.name}</span>
                                 <div class="tree-item-actions" onclick="event.stopPropagation();">
-                                    <i class="fas fa-folder-plus tree-action-icon" onclick="app.createObjectInSubcategory(${sub.id}, ${categoryId})" title="Přidat projekt" style="color: #3498db;"></i>
-                                    <i class="fas fa-edit tree-action-icon" onclick="app.editSubcategory(${sub.id})" title="Edit"></i>
-                                    <i class="fas fa-trash tree-action-icon" onclick="app.deleteSubcategory(${sub.id})" title="Delete"></i>
+                                    <div class="tree-dropdown">
+                                        <button class="tree-dropdown-toggle" onclick="app.toggleTreeDropdown(event, 'subcategory-${sub.id}')" title="Menu">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="tree-dropdown-menu" id="subcategory-${sub.id}-dropdown" style="display: none;">
+                                            <button onclick="app.createObjectInSubcategory(${sub.id}, ${categoryId}); app.closeTreeDropdown('subcategory-${sub.id}');" class="tree-dropdown-item">
+                                                <i class="fas fa-folder-plus" style="color: #3498db;"></i> Přidat projekt
+                                            </button>
+                                            <button onclick="app.editSubcategory(${sub.id}); app.closeTreeDropdown('subcategory-${sub.id}');" class="tree-dropdown-item">
+                                                <i class="fas fa-edit"></i> Upravit
+                                            </button>
+                                            <button onclick="app.deleteSubcategory(${sub.id}); app.closeTreeDropdown('subcategory-${sub.id}');" class="tree-dropdown-item tree-dropdown-item-danger">
+                                                <i class="fas fa-trash"></i> Smazat
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="tree-children" data-subcategory-children="${sub.id}" style="display: none;">
-                                <div class="tree-loading">Loading...</div>
+                                <div class="tree-loading">Načítání...</div>
                             </div>
                         </div>
                     `;
@@ -151,8 +160,19 @@ const AppCategories = {
                                 <i class="${iconClass} tree-item-icon"></i>
                                 <span class="tree-item-label">${obj.object_name}</span>
                                 <div class="tree-item-actions" onclick="event.stopPropagation();">
-                                    <i class="fas fa-edit tree-action-icon" onclick="app.editProject(${obj.id})" title="Edit"></i>
-                                    <i class="fas fa-trash tree-action-icon" onclick="app.deleteProject(${obj.id})" title="Delete"></i>
+                                    <div class="tree-dropdown">
+                                        <button class="tree-dropdown-toggle" onclick="app.toggleTreeDropdown(event, 'project-${obj.id}')" title="Menu">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="tree-dropdown-menu" id="project-${obj.id}-dropdown" style="display: none;">
+                                            <button onclick="app.editProject(${obj.id}); app.closeTreeDropdown('project-${obj.id}');" class="tree-dropdown-item">
+                                                <i class="fas fa-edit"></i> Editovat
+                                            </button>
+                                            <button onclick="app.deleteProject(${obj.id}); app.closeTreeDropdown('project-${obj.id}');" class="tree-dropdown-item tree-dropdown-item-danger">
+                                                <i class="fas fa-trash"></i> Smazat
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -177,12 +197,13 @@ const AppCategories = {
     async toggleSubcategory(subcategoryId) {
         const subcategoryItem = document.querySelector(`[data-subcategory-id="${subcategoryId}"]`);
         if (subcategoryItem) {
-            const expandIcon = subcategoryItem.querySelector('.tree-expand-icon');
             const childrenDiv = subcategoryItem.querySelector(`[data-subcategory-children="${subcategoryId}"]`);
             const isExpanded = childrenDiv.style.display !== 'none';
 
-            if (expandIcon) {
-                expandIcon.className = `fas fa-chevron-${!isExpanded ? 'down' : 'right'} tree-expand-icon`;
+            if (isExpanded) {
+                subcategoryItem.classList.remove('expanded');
+            } else {
+                subcategoryItem.classList.add('expanded');
             }
 
             if (childrenDiv) {
@@ -201,7 +222,7 @@ const AppCategories = {
      */
     async loadSubcategoryProjects(subcategoryId, container) {
         try {
-            container.innerHTML = '<div class="tree-loading">Loading...</div>';
+            container.innerHTML = '<div class="tree-loading">Načítání...</div>';
 
             const objects = await API.getObjects(null, subcategoryId).catch(() => []);
 
@@ -211,36 +232,37 @@ const AppCategories = {
                     const icon = obj.icon || obj.metadata?.icon || 'fa-folder';
                     const iconClass = icon.startsWith('fa-') ? `fas ${icon}` : icon;
                     html += `
-                        <div class="tree-item project-item" data-project-id="${obj.id}"
-                             draggable="true"
-                             ondragstart="app.handleDragStart(event, ${obj.id}, 'project', ${obj.subcategory_id || 'null'})"
-                             ondragover="app.handleDragOver(event)"
-                             ondrop="app.handleDrop(event, ${obj.id}, 'project', ${obj.subcategory_id || 'null'})"
-                             ondragend="app.handleDragEnd(event)"
-                             onclick="app.selectObject(${obj.id})">
+                        <div class="tree-item project-item" data-project-id="${obj.id}" onclick="app.selectObject(${obj.id})">
                             <div class="tree-item-content">
-                                <i class="fas fa-grip-vertical tree-drag-handle" style="cursor: move; color: #95a5a6; margin-right: 0.25rem;"
-                                   ondragstart="event.stopPropagation();"
-                                   onclick="event.stopPropagation();"
-                                   title="Přetáhnout"></i>
                                 <i class="${iconClass} tree-item-icon"></i>
                                 <span class="tree-item-label">${obj.object_name}</span>
                                 <div class="tree-item-actions" onclick="event.stopPropagation();">
-                                    <i class="fas fa-edit tree-action-icon" onclick="app.editProject(${obj.id})" title="Edit"></i>
-                                    <i class="fas fa-trash tree-action-icon" onclick="app.deleteProject(${obj.id})" title="Delete"></i>
+                                    <div class="tree-dropdown">
+                                        <button class="tree-dropdown-toggle" onclick="app.toggleTreeDropdown(event, 'project-${obj.id}')" title="Menu">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="tree-dropdown-menu" id="project-${obj.id}-dropdown" style="display: none;">
+                                            <button onclick="app.editProject(${obj.id}); app.closeTreeDropdown('project-${obj.id}');" class="tree-dropdown-item">
+                                                <i class="fas fa-edit"></i> Upravit
+                                            </button>
+                                            <button onclick="app.deleteProject(${obj.id}); app.closeTreeDropdown('project-${obj.id}');" class="tree-dropdown-item tree-dropdown-item-danger">
+                                                <i class="fas fa-trash"></i> Smazat
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     `;
                 });
             } else {
-                html = '<div class="tree-empty">No projects</div>';
+                html = '<div class="tree-empty">Žádné projekty</div>';
             }
 
             container.innerHTML = html;
         } catch (error) {
             console.error('Error loading subcategory projects:', error);
-            container.innerHTML = '<div class="tree-error">Error loading</div>';
+            container.innerHTML = '<div class="tree-error">Chyba načítání</div>';
         }
     },
 
@@ -388,4 +410,3 @@ const AppCategories = {
 if (typeof window !== 'undefined') {
     window.AppCategories = AppCategories;
 }
-

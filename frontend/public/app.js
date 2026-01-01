@@ -4,7 +4,7 @@
  * Dependencies: api.js, components.js, js/*.js moduly
  * Author: KMS Team
  * Version: 2.0.0
- * 
+ *
  * Modular Architecture:
  * - app-state.js: State management
  * - app-auth.js: Authentication
@@ -232,12 +232,12 @@ const app = {
 
     // ==================== CATEGORIES SIDEBAR ====================
     projectSelectorOpen: false,
-    
+
     toggleProjectSelector() {
         this.projectSelectorOpen = !this.projectSelectorOpen;
         const sidebar = document.getElementById('categories-sidebar');
         const btn = document.querySelector('.module-nav-btn.categories-btn');
-        
+
         if (this.projectSelectorOpen) {
             if (sidebar) sidebar.style.display = 'flex';
             btn?.classList.add('active');
@@ -246,19 +246,57 @@ const app = {
             btn?.classList.remove('active');
         }
     },
-    
+
     closeProjectSelector() {
         // Don't auto-close sidebar - keep it open for browsing
         // User can toggle it manually with the button
     },
-    
+
+    // ==================== TREE DROPDOWN MENU ====================
+    toggleTreeDropdown(event, id) {
+        event.stopPropagation();
+        const dropdown = document.getElementById(`${id}-dropdown`);
+        if (!dropdown) return;
+
+        // Close all other dropdowns
+        document.querySelectorAll('.tree-dropdown-menu').forEach(menu => {
+            if (menu.id !== `${id}-dropdown`) {
+                menu.style.display = 'none';
+            }
+        });
+
+        // Toggle current dropdown
+        if (dropdown.style.display === 'none' || !dropdown.style.display) {
+            dropdown.style.display = 'block';
+            // Close on outside click
+            setTimeout(() => {
+                const closeHandler = (e) => {
+                    if (!dropdown.contains(e.target) && !event.target.closest('.tree-dropdown-toggle')) {
+                        dropdown.style.display = 'none';
+                        document.removeEventListener('click', closeHandler);
+                    }
+                };
+                document.addEventListener('click', closeHandler);
+            }, 0);
+        } else {
+            dropdown.style.display = 'none';
+        }
+    },
+
+    closeTreeDropdown(id) {
+        const dropdown = document.getElementById(`${id}-dropdown`);
+        if (dropdown) {
+            dropdown.style.display = 'none';
+        }
+    },
+
     updateHeaderProject(project) {
         const headerName = document.getElementById('header-project-name');
         const headerContainer = document.getElementById('header-current-project');
-        
+
         // Get project name - API uses object_name, not name
         const projectName = project?.object_name || project?.name;
-        
+
         if (headerName) {
             if (project && projectName) {
                 headerName.textContent = projectName;
@@ -274,7 +312,7 @@ const app = {
             }
         }
     },
-    
+
     restoreSelectedProject() {
         const saved = localStorage.getItem('kms-selected-project');
         if (saved) {
@@ -302,7 +340,7 @@ const app = {
     // Keep these for any old code that may still reference them directly
     folderPickerState: null,
     importState: null,
-    
+
     // Drag and drop handlers (placeholder - implement if needed)
     handleDragStart: (event, id, type, subcategoryId) => {
         event.dataTransfer.setData('application/json', JSON.stringify({ id, type, subcategoryId }));
@@ -317,7 +355,7 @@ const app = {
     handleDragEnd: (event) => {
         // Clean up after drag
     },
-    
+
     // Synch modal
     showSynchModal: async function(objectId) {
         // Forward to AppImport or implement separately
@@ -347,7 +385,7 @@ const app = {
     showImageModal: (fileName, imageUrl) => AppFolders.showImageModal(fileName, imageUrl),
     closeImageModal: () => AppFolders.closeImageModal(),
     downloadFileContent: (fileName, content) => AppFolders.downloadFileContent(fileName, content),
-    
+
     // Open folder (legacy)
     openFolder: function(path) {
         Components.showToast('Navigace do složky zatím není implementována', 'info');

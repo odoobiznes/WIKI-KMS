@@ -26,29 +26,38 @@ Components.renderCategoriesTree = function(categories, filter = 'all', expandedC
         const iconClass = icon.startsWith('fa-') ? `fas ${icon}` : icon;
 
         return `
-            <div class="tree-item category-item" data-category-id="${category.id}"
-                 draggable="true"
-                 ondragstart="app.handleDragStart(event, ${category.id}, 'category')"
-                 ondragover="app.handleDragOver(event)"
-                 ondrop="app.handleDrop(event, ${category.id}, 'category')"
-                 ondragend="app.handleDragEnd(event)">
-                <div class="tree-item-content" onclick="app.toggleCategory(${category.id})">
-                    <i class="fas fa-grip-vertical tree-drag-handle" style="cursor: move; color: #95a5a6; margin-right: 0.25rem;"
-                       ondragstart="event.stopPropagation();"
-                       onclick="event.stopPropagation();"
-                       title="Přetáhnout"></i>
-                    <i class="fas fa-chevron-${isExpanded ? 'down' : 'right'} tree-expand-icon"></i>
+            <div class="tree-item category-item" data-category-id="${category.id}">
+                <div class="tree-item-content" onclick="app.selectCategory(${category.id})">
                     <i class="${iconClass} tree-item-icon"></i>
                     <span class="tree-item-label">${category.name}</span>
                     <div class="tree-item-actions" onclick="event.stopPropagation();">
-                        <i class="fas fa-plus tree-action-icon" onclick="app.createSubcategoryInCategory(${category.id})" title="Přidat podkategorii" style="color: #27ae60;"></i>
-                        <i class="fas fa-folder-plus tree-action-icon" onclick="app.createObjectInCategory(${category.id})" title="Přidat projekt" style="color: #3498db;"></i>
-                        <i class="fas fa-edit tree-action-icon" onclick="app.editCategory(${category.id})" title="Edit"></i>
-                        <i class="fas fa-trash tree-action-icon" onclick="app.deleteCategory(${category.id})" title="Delete"></i>
+                        <div class="tree-dropdown">
+                            <button class="tree-dropdown-toggle" onclick="app.toggleTreeDropdown(event, 'category-${category.id}')" title="Menu">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <div class="tree-dropdown-menu" id="category-${category.id}-dropdown" style="display: none;">
+                                <button onclick="app.createSubcategoryInCategory(${category.id}); app.closeTreeDropdown('category-${category.id}');" class="tree-dropdown-item">
+                                    <i class="fas fa-plus" style="color: #27ae60;"></i> Přidat podkategorii
+                                </button>
+                                <button onclick="app.createObjectInCategory(${category.id}); app.closeTreeDropdown('category-${category.id}');" class="tree-dropdown-item">
+                                    <i class="fas fa-folder-plus" style="color: #3498db;"></i> Přidat projekt
+                                </button>
+                                <button onclick="app.createCategory(); app.closeTreeDropdown('category-${category.id}');" class="tree-dropdown-item">
+                                    <i class="fas fa-folder" style="color: #9b59b6;"></i> Nová kategorie
+                                </button>
+                                <div class="tree-dropdown-divider"></div>
+                                <button onclick="app.editCategory(${category.id}); app.closeTreeDropdown('category-${category.id}');" class="tree-dropdown-item">
+                                    <i class="fas fa-edit"></i> Upravit
+                                </button>
+                                <button onclick="app.deleteCategory(${category.id}); app.closeTreeDropdown('category-${category.id}');" class="tree-dropdown-item tree-dropdown-item-danger">
+                                    <i class="fas fa-trash"></i> Smazat
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="tree-children" data-category-children="${category.id}" style="display: ${isExpanded ? 'block' : 'none'};">
-                    <div class="tree-loading">Loading...</div>
+                    <div class="tree-loading">Načítání...</div>
                 </div>
             </div>
         `;
@@ -161,4 +170,3 @@ Components.renderSearchResults = function(query, results) {
         </div>
     `;
 };
-

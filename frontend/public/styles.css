@@ -363,6 +363,7 @@ body {
 }
 
 .tree-item-content {
+    position: relative;
     padding: 0.3rem 0.4rem;
     display: flex;
     align-items: center;
@@ -379,6 +380,21 @@ body {
 .tree-item.active > .tree-item-content {
     background: #e3f2fd;
     color: #2196f3;
+}
+
+.tree-item.expanded > .tree-item-content {
+    background: #f0f7ff;
+    font-weight: 500;
+}
+
+.tree-item.expanded > .tree-item-content::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: #3498db;
 }
 
 .tree-expand-icon {
@@ -414,6 +430,79 @@ body {
     opacity: 1;
 }
 
+/* Tree Dropdown Menu */
+.tree-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.tree-dropdown-toggle {
+    background: none;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    color: #7f8c8d;
+    font-size: 0.75rem;
+    border-radius: 3px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tree-dropdown-toggle:hover {
+    background: #e9ecef;
+    color: #2c3e50;
+}
+
+.tree-dropdown-menu {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 0.25rem;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    min-width: 160px;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.tree-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #2c3e50;
+    transition: background 0.2s;
+}
+
+.tree-dropdown-item:hover {
+    background: #f8f9fa;
+}
+
+.tree-dropdown-item i {
+    width: 16px;
+    text-align: center;
+}
+
+.tree-dropdown-item-danger {
+    color: #e74c3c;
+}
+
+.tree-dropdown-item-danger:hover {
+    background: #fee;
+    color: #c0392b;
+}
+
+/* Legacy tree-action-icon styles (kept for compatibility) */
 .tree-action-icon {
     padding: 0.25rem;
     cursor: pointer;
