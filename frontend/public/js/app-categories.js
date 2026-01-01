@@ -296,8 +296,9 @@ const AppCategories = {
     /**
      * Create new category
      */
-    createCategory() {
-        AppUIHelpers.showModal(Components.categoryForm());
+    async createCategory() {
+        const formContent = await Components.categoryForm();
+        AppUIHelpers.showModal(formContent);
     },
 
     /**
