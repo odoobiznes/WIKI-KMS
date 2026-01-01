@@ -406,9 +406,16 @@ body {
 }
 
 .tree-item-icon {
-    width: 16px;
+    width: 14px;
     text-align: center;
     color: #3498db;
+    font-size: 0.75rem;
+}
+
+.subcategory-item .tree-item-icon,
+.project-item .tree-item-icon {
+    width: 12px;
+    font-size: 0.65rem;
 }
 
 .tree-item-label {
@@ -527,8 +534,8 @@ body {
 }
 
 .tree-children {
-    margin-left: 1.5rem;
-    padding-left: 0.5rem;
+    margin-left: 0.5rem;
+    padding-left: 0.25rem;
     border-left: 1px solid #e9ecef;
 }
 
@@ -540,11 +547,21 @@ body {
 }
 
 .subcategory-item .tree-item-content {
-    padding-left: 1rem;
+    padding-left: 0.75rem;
+    padding-top: 0.1rem;
+    padding-bottom: 0.1rem;
 }
 
 .project-item .tree-item-content {
-    padding-left: 1.5rem;
+    padding-left: 1.25rem;
+    padding-top: 0.1rem;
+    padding-bottom: 0.1rem;
+}
+
+.subcategory-item,
+.project-item {
+    font-size: 0.7rem;
+    line-height: 1.1;
 }
 
 /* Collapsed sidebar styles */
