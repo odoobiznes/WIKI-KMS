@@ -73,14 +73,13 @@ Components.renderCategoryObjects = function(category, objects) {
     if (!objects || objects.length === 0) {
         mainView.innerHTML = `
             <div class="category-view">
-                <h2>${category.name}</h2>
-                <p style="color: #7f8c8d; margin: 1rem 0 2rem;">
-                    ${category.description || 'No description'}
-                </p>
-                <p style="color: #7f8c8d;">No objects in this category</p>
-                <button onclick="app.createObjectInCategory(${category.id})" class="btn btn-primary" style="margin-top: 1rem;">
-                    <i class="fas fa-plus"></i> Create Object
-                </button>
+                <div class="category-header-row">
+                    <h2>${category.name}</h2>
+                    <button onclick="app.createObjectInCategory(${category.id})" class="btn btn-primary btn-sm">
+                        <i class="fas fa-plus"></i> New
+                    </button>
+                </div>
+                <p style="color: #7f8c8d; margin-top: 1rem;">Žádné projekty v této kategorii</p>
             </div>
         `;
         return;
@@ -89,25 +88,16 @@ Components.renderCategoryObjects = function(category, objects) {
     const objectsHTML = objects.map(obj => {
         const icon = obj.icon || obj.metadata?.icon || 'fa-folder';
         const iconClass = icon.startsWith('fa-') ? `fas ${icon}` : icon;
+        const description = obj.description || obj.metadata?.description || '';
 
         return `
-        <div class="document-card project-card" data-project-id="${obj.id}">
-            <div class="project-card-content" onclick="app.selectObject(${obj.id})">
-                <div class="project-icon">
-                    <i class="${iconClass}"></i>
-                </div>
-                <div class="project-info">
-                    <span class="folder">${obj.category_name}</span>
-                    <h4>${obj.object_name}</h4>
-                    <div class="meta">
-                        ${obj.subcategory_name || 'No subcategory'} •
-                        ${obj.status}
-                    </div>
-                </div>
-            </div>
-            <div class="project-actions" onclick="event.stopPropagation();">
-                <i class="fas fa-edit project-action-icon" onclick="app.editProject(${obj.id})" title="Edit"></i>
-                <i class="fas fa-trash project-action-icon" onclick="app.deleteProject(${obj.id})" title="Delete"></i>
+        <div class="project-list-item" data-project-id="${obj.id}" onclick="app.selectObject(${obj.id})">
+            <i class="${iconClass} project-list-icon"></i>
+            <span class="project-list-name">${obj.object_name}</span>
+            <span class="project-list-desc">${description}</span>
+            <div class="project-list-actions" onclick="event.stopPropagation();">
+                <i class="fas fa-edit" onclick="app.editProject(${obj.id})" title="Upravit"></i>
+                <i class="fas fa-trash" onclick="app.deleteProject(${obj.id})" title="Smazat"></i>
             </div>
         </div>
     `;
@@ -115,19 +105,13 @@ Components.renderCategoryObjects = function(category, objects) {
 
     mainView.innerHTML = `
         <div class="category-view">
-            <div class="object-header">
-                <div>
-                    <h2>${category.name}</h2>
-                    <p style="color: #7f8c8d; margin-top: 0.5rem;">
-                        ${category.description || 'No description'}
-                    </p>
-                </div>
-                <button onclick="app.createObjectInCategory(${category.id})" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> New Object
+            <div class="category-header-row">
+                <h2>${category.name}</h2>
+                <button onclick="app.createObjectInCategory(${category.id})" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> New
                 </button>
             </div>
-            <h3 style="margin: 2rem 0 1rem;">Projekty (${objects.length})</h3>
-            <div class="documents-grid">
+            <div class="project-list">
                 ${objectsHTML}
             </div>
         </div>

@@ -334,10 +334,11 @@ body {
 }
 
 .tree-item {
-    margin: 0.1rem 0;
-    border-radius: 3px;
-    font-size: 0.8rem;
+    margin: 0;
+    border-radius: 2px;
+    font-size: 0.75rem;
     cursor: pointer;
+    line-height: 1.2;
 }
 
 .tree-item[draggable="true"] {
@@ -365,13 +366,12 @@ body {
 
 .tree-item-content {
     position: relative;
-    padding: 0.3rem 0.4rem;
+    padding: 0.15rem 0.3rem;
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.3rem;
     cursor: pointer;
-    transition: all 0.2s;
-    position: relative;
+    transition: all 0.15s;
 }
 
 .tree-item-content:hover {
@@ -540,11 +540,11 @@ body {
 }
 
 .subcategory-item .tree-item-content {
-    padding-left: 1.5rem;
+    padding-left: 1rem;
 }
 
 .project-item .tree-item-content {
-    padding-left: 2rem;
+    padding-left: 1.5rem;
 }
 
 /* Collapsed sidebar styles */
@@ -4896,6 +4896,100 @@ body {
     .header-info-bar {
         max-width: 350px;
     }
+}
+
+/* Category View - List Mode */
+.category-view {
+    padding: 1rem;
+}
+
+.category-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.category-header-row h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.project-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.project-list-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.project-list-item:hover {
+    background: #f5f7fa;
+    border-color: #3498db;
+}
+
+.project-list-icon {
+    width: 20px;
+    text-align: center;
+    color: #f39c12;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.project-list-name {
+    font-weight: 500;
+    color: #2c3e50;
+    min-width: 150px;
+    flex-shrink: 0;
+}
+
+.project-list-desc {
+    flex: 1;
+    color: #7f8c8d;
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.project-list-actions {
+    display: flex;
+    gap: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.project-list-item:hover .project-list-actions {
+    opacity: 1;
+}
+
+.project-list-actions i {
+    cursor: pointer;
+    color: #95a5a6;
+    padding: 0.25rem;
+    transition: color 0.15s;
+}
+
+.project-list-actions i:hover {
+    color: #3498db;
+}
+
+.project-list-actions i.fa-trash:hover {
+    color: #e74c3c;
 }
 
 /* Responsive: Tablet */
