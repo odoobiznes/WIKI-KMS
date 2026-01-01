@@ -1726,9 +1726,13 @@ Make tasks specific and actionable.`;
             // Save tasks with existing phases
             await this.savePhasesAndTasks(phases, tasks);
 
-            // Display tasks
+            // Display tasks in Ideas module
             this.displayPhases(phases, tasks);
-            showNotification('Tasks generated and saved!', 'success');
+            
+            // Auto-sync to Tasks module
+            await this.syncPhasesAndTasksToTasksModule(phases, tasks);
+            
+            showNotification(`${tasks.length} tasks generated and synced to TASKS!`, 'success');
 
         } catch (error) {
             console.error('Generate tasks error:', error);
@@ -1754,9 +1758,31 @@ Make tasks specific and actionable.`;
     },
 
     async syncPhasesAndTasksToTasksModule(phases, tasks) {
-        // This will be implemented to sync with Tasks module
-        // For now, just log
-        console.log('Syncing phases and tasks to Tasks module:', { phases, tasks });
+        const project = StateManager.getCurrentObject();
+        if (!project || !tasks || tasks.length === 0) return;
+
+        if (typeof TasksModule === 'undefined') {
+            console.warn('TasksModule not available');
+            return;
+        }
+
+        // Sync each task to Tasks module
+        let syncedCount = 0;
+        tasks.forEach(task => {
+            const phase = phases.find(p => p.id === task.phase_id || p.order === task.phase_id);
+            TasksModule.addExternalTask({
+                ...task,
+                title: task.name || task.title,
+                project_id: project.id,
+                project_name: project.object_name || project.name,
+                phase_name: phase?.name || `Phase ${task.phase_id + 1}`,
+                source: 'ideas',
+                skipNotification: true
+            });
+            syncedCount++;
+        });
+
+        console.log(`Synced ${syncedCount} tasks to Tasks module`);
     },
 
     async loadPhases() {
