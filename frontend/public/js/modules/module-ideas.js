@@ -131,7 +131,7 @@ const IdeasModule = {
         }
     },
 
-    displayTasks(tasks) {
+    async displayTasks(tasks) {
         const container = document.getElementById('generated-phases');
         if (!container) {
             console.warn('Container #generated-phases not found');
@@ -145,32 +145,90 @@ const IdeasModule = {
 
         console.log('Displaying tasks:', tasks);
 
-        container.innerHTML = `
-            <div class="phases-list">
-                <div class="phase-card">
-                    <div class="phase-header">
-                        <span class="phase-badge">Úkoly</span>
-                        <h5>Vygenerované úkoly</h5>
-                    </div>
-                    <div class="phase-tasks">
-                        <ul>
-                            ${tasks.map(task => {
-                                const taskName = typeof task === 'string' ? task : (task.name || task.description || task.title || 'Úkol');
-                                const taskDesc = typeof task === 'string' ? '' : (task.description && task.description !== taskName ? task.description : '');
-                                const priority = typeof task === 'string' ? 'medium' : (task.priority || 'medium');
-                                return `
-                                <li class="task-item priority-${priority}">
-                                    <strong>${taskName}</strong>
-                                    ${taskDesc ? `<p>${taskDesc}</p>` : ''}
-                                    <span class="task-meta">Priority: ${priority}</span>
-                                </li>
-                            `;
-                            }).join('')}
-                        </ul>
+        // Load existing phases
+        const phases = await this.loadPhases();
+        
+        // Normalize tasks
+        const normalizedTasks = tasks.map((task, idx) => {
+            const taskName = typeof task === 'string' ? task : (task.name || task.title || task.description || 'Úkol');
+            const taskDesc = typeof task === 'string' ? '' : (task.description || '');
+            const priority = typeof task === 'string' ? 'medium' : (task.priority || 'medium');
+            return {
+                id: task.id || idx + 1,
+                phase_id: task.phase_id !== undefined ? task.phase_id : (idx % Math.max(phases.length, 1)),
+                name: taskName,
+                title: taskName,
+                description: taskDesc,
+                priority: priority,
+                status: task.status || 'pending'
+            };
+        });
+        
+        if (phases.length > 0) {
+            // Use displayPhases which properly groups by phase
+            this.displayPhases(phases, normalizedTasks);
+            
+            // Sync to Tasks module
+            await this.syncPhasesAndTasksToTasksModule(phases, normalizedTasks);
+            
+            // Save to metadata
+            const project = StateManager.getCurrentObject();
+            if (project) {
+                try {
+                    await API.put(`/objects/${project.id}`, {
+                        metadata: { 
+                            generated_phases: phases,
+                            generated_tasks: normalizedTasks 
+                        }
+                    });
+                } catch (e) {
+                    console.warn('Could not save tasks to API:', e);
+                }
+            }
+        } else {
+            // No phases - display as compact list with sync button
+            container.innerHTML = `
+                <div class="phases-list">
+                    <div class="phase-card">
+                        <div class="phase-header" onclick="IdeasModule.togglePhase(0)">
+                            <i class="fas fa-chevron-down phase-toggle"></i>
+                            <span class="phase-badge">Úkoly</span>
+                            <h5>Vygenerované úkoly</h5>
+                            <span style="color: #888; font-size: 0.75rem; margin-left: auto;">${normalizedTasks.length} tasks</span>
+                        </div>
+                        <div class="phase-tasks">
+                            <ul>
+                                ${normalizedTasks.map((task, idx) => `
+                                    <li class="phase-task-item" data-task-id="${task.id}">
+                                        <span class="task-priority-dot ${task.priority}"></span>
+                                        <span class="task-name">${this.escapeHtml(task.name)}</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
+                <div style="margin-top: 0.5rem; text-align: right;">
+                    <button class="btn btn-sm btn-primary" onclick="IdeasModule.syncAllToTasks()">
+                        <i class="fas fa-sync"></i> Sync All to TASKS
+                    </button>
+                </div>
+            `;
+            
+            // Sync even without phases
+            const project = StateManager.getCurrentObject();
+            if (project && typeof TasksModule !== 'undefined') {
+                normalizedTasks.forEach(task => {
+                    TasksModule.addExternalTask({
+                        ...task,
+                        project_id: project.id,
+                        project_name: project.object_name || project.name,
+                        source: 'ideas',
+                        skipNotification: true
+                    });
+                });
+            }
+        }
     },
 
     displaySuggestions(content) {
