@@ -26,8 +26,8 @@ Components.renderCategoriesTree = function(categories, filter = 'all', expandedC
         const iconClass = icon.startsWith('fa-') ? `fas ${icon}` : icon;
 
         return `
-            <div class="tree-item category-item" data-category-id="${category.id}">
-                <div class="tree-item-content" onclick="app.selectCategory(${category.id})">
+            <div class="tree-item category-item" data-category-id="${category.id}" onclick="app.selectCategory(${category.id})">
+                <div class="tree-item-content">
                     <i class="${iconClass} tree-item-icon"></i>
                     <span class="tree-item-label">${category.name}</span>
                     <div class="tree-item-actions" onclick="event.stopPropagation();">
@@ -56,7 +56,7 @@ Components.renderCategoriesTree = function(categories, filter = 'all', expandedC
                         </div>
                     </div>
                 </div>
-                <div class="tree-children" data-category-children="${category.id}" style="display: ${isExpanded ? 'block' : 'none'};">
+                <div class="tree-children" data-category-children="${category.id}" style="display: ${isExpanded ? 'block' : 'none'};" onclick="event.stopPropagation();">
                     <div class="tree-loading">Načítání...</div>
                 </div>
             </div>

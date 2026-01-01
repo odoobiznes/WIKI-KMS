@@ -118,8 +118,8 @@ const AppCategories = {
                     const icon = sub.icon || sub.metadata?.icon || 'fa-folder-open';
                     const iconClass = icon.startsWith('fa-') ? `fas ${icon}` : icon;
                     html += `
-                        <div class="tree-item subcategory-item" data-subcategory-id="${sub.id}">
-                            <div class="tree-item-content" onclick="app.toggleSubcategory(${sub.id})">
+                        <div class="tree-item subcategory-item" data-subcategory-id="${sub.id}" onclick="app.toggleSubcategory(${sub.id})">
+                            <div class="tree-item-content">
                                 <i class="${iconClass} tree-item-icon"></i>
                                 <span class="tree-item-label">${sub.name}</span>
                                 <div class="tree-item-actions" onclick="event.stopPropagation();">
@@ -141,7 +141,7 @@ const AppCategories = {
                                     </div>
                                 </div>
                             </div>
-                            <div class="tree-children" data-subcategory-children="${sub.id}" style="display: none;">
+                            <div class="tree-children" data-subcategory-children="${sub.id}" style="display: none;" onclick="event.stopPropagation();">
                                 <div class="tree-loading">Načítání...</div>
                             </div>
                         </div>
