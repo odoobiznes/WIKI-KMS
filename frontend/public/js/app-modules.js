@@ -15,7 +15,7 @@ const ModuleRouter = {
             description: 'Create & Plan Phase',
             showProjects: true,
             projectsCollapsed: false,
-            tools: ['konsolidovat', 'ai-analyze', 'generate', 'visualize', 'backup']
+            tools: ['konsolidovat', 'ai-analyze', 'generate', 'backup']
         },
         develop: {
             id: 'develop',
@@ -104,7 +104,7 @@ const ModuleRouter = {
 
     // Current active module
     currentModule: 'develop',
-    
+
     // Passed project from another module
     passedProject: null,
 
@@ -115,7 +115,7 @@ const ModuleRouter = {
         console.log('🚀 ModuleRouter initialized');
         this.renderModuleNav();
         this.loadModuleFromHash();
-        
+
         // Handle browser back/forward
         window.addEventListener('hashchange', () => this.loadModuleFromHash());
     },
@@ -193,11 +193,16 @@ const ModuleRouter = {
         // Update document title
         document.title = `KMS - ${module.name}`;
 
+        // Update header module info
+        this.updateHeaderModule(module);
+
         // Apply module-specific settings
         this.applyModuleSettings(module);
 
-        // Render module content
-        this.renderModuleContent(module);
+        // Render module content (async)
+        this.renderModuleContent(module).catch(err => {
+            console.error('Error rendering module content:', err);
+        });
 
         // Emit module change event
         document.dispatchEvent(new CustomEvent('moduleChanged', {
@@ -211,7 +216,7 @@ const ModuleRouter = {
     applyModuleSettings(module) {
         // Handle filter visibility
         const filtersToHide = module.hideFilters || [];
-        
+
         // Reset all filters to visible
         document.querySelectorAll('.filter-element').forEach(el => {
             el.style.display = '';
@@ -237,64 +242,66 @@ const ModuleRouter = {
     /**
      * Render module-specific content
      */
-    renderModuleContent(module) {
+    async renderModuleContent(module) {
         const mainContent = document.getElementById('main-content');
         if (!mainContent) return;
 
         // Get module header HTML
         const headerHtml = this.renderModuleHeader(module);
 
-        // Get module-specific content
-        let contentHtml = '';
+        // All modules handle their own rendering including header
+        // Remove any existing module-header to prevent duplication
+        const existingHeader = document.getElementById('module-header');
+        if (existingHeader) existingHeader.remove();
+
         switch (module.id) {
-            case 'develop':
-                contentHtml = this.renderDevelopModule(module);
+            case 'ideas':
+                if (typeof IdeasModule !== 'undefined') {
+                    setTimeout(() => IdeasModule.render(), 0);
+                }
                 break;
-            case 'tasks':
-                contentHtml = this.renderTasksModule(module);
+            case 'develop':
+                if (typeof DevelopModule !== 'undefined') {
+                    setTimeout(() => DevelopModule.render(), 0);
+                }
                 break;
             case 'deploy':
-                contentHtml = this.renderDeployModule(module);
+                if (typeof DeployModule !== 'undefined') {
+                    setTimeout(() => DeployModule.render(), 0);
+                }
+                break;
+            case 'tasks':
+                if (typeof TasksModule !== 'undefined') {
+                    setTimeout(() => TasksModule.render(), 0);
+                }
                 break;
             case 'clients':
-                contentHtml = this.renderClientsModule(module);
+                if (typeof ClientsModule !== 'undefined') {
+                    setTimeout(() => ClientsModule.render(), 0);
+                }
                 break;
             case 'finance':
-                contentHtml = this.renderFinanceModule(module);
+                if (typeof FinanceModule !== 'undefined') {
+                    setTimeout(() => FinanceModule.render(), 0);
+                }
                 break;
             case 'analytics':
-                contentHtml = this.renderAnalyticsModule(module);
-                break;
-            case 'ideas':
-                contentHtml = this.renderIdeasModule(module);
+                if (typeof AnalyticsModule !== 'undefined') {
+                    setTimeout(() => AnalyticsModule.render(), 0);
+                }
                 break;
             case 'logins':
-                // Call LoginsModule to render
                 if (typeof LoginsModule !== 'undefined') {
                     setTimeout(() => LoginsModule.render(), 0);
-                    return; // LoginsModule handles its own rendering
                 }
-                contentHtml = '<div class="module-placeholder">Loading LOGINS module...</div>';
                 break;
             case 'resources':
-                // Call ResourcesModule to render
                 if (typeof ResourcesModule !== 'undefined') {
                     setTimeout(() => ResourcesModule.render(), 0);
-                    return; // ResourcesModule handles its own rendering
                 }
-                contentHtml = '<div class="module-placeholder">Loading RESOURCES module...</div>';
                 break;
             default:
-                contentHtml = '<div class="module-placeholder">Module coming soon...</div>';
-        }
-
-        // Keep existing content but add module header
-        // We'll update the module header area only, not replace all content
-        let moduleHeader = document.getElementById('module-header');
-        if (!moduleHeader) {
-            mainContent.insertAdjacentHTML('afterbegin', `<div id="module-header">${headerHtml}</div>`);
-        } else {
-            moduleHeader.innerHTML = headerHtml;
+                mainContent.innerHTML = '<div class="module-placeholder">Module coming soon...</div>';
         }
     },
 
@@ -365,7 +372,6 @@ const ModuleRouter = {
                 { action: 'consolidate', icon: 'fa-compress-alt', label: 'Consolidate' },
                 { action: 'ai-analyze', icon: 'fa-brain', label: 'AI Analyze' },
                 { action: 'generate', icon: 'fa-magic', label: 'Generate' },
-                { action: 'visualize', icon: 'fa-project-diagram', label: 'Visualize' }
             ],
             logins: [
                 { action: 'new-credential', icon: 'fa-plus', label: 'New Credential' },
@@ -395,9 +401,9 @@ const ModuleRouter = {
      */
     executeAction(action) {
         console.log(`⚡ Executing action: ${action}`);
-        
+
         const currentObject = StateManager.getCurrentObject();
-        
+
         switch (action) {
             case 'terminal':
                 if (currentObject) app.openTool('terminal', currentObject.id);
@@ -431,9 +437,6 @@ const ModuleRouter = {
                 break;
             case 'generate':
                 if (typeof IdeasModule !== 'undefined') IdeasModule.generate();
-                break;
-            case 'visualize':
-                if (typeof IdeasModule !== 'undefined') IdeasModule.visualize();
                 break;
             case 'load-tasks':
                 if (typeof TasksModule !== 'undefined') TasksModule.loadProjectTasks();
@@ -521,6 +524,26 @@ const ModuleRouter = {
     },
 
     /**
+     * Update header with current module info
+     */
+    updateHeaderModule(module) {
+        const moduleIcon = document.getElementById('header-module-icon');
+        const moduleName = document.getElementById('header-module-name');
+        const moduleInfo = document.getElementById('header-current-module');
+
+        if (moduleIcon && moduleName) {
+            // Update icon - remove old classes and add new
+            moduleIcon.className = `fas ${module.icon}`;
+            moduleIcon.style.color = module.color;
+            moduleName.textContent = module.name;
+        }
+
+        if (moduleInfo) {
+            moduleInfo.style.setProperty('--module-color', module.color);
+        }
+    },
+
+    /**
      * Render DEVELOP module
      */
     renderDevelopModule(module) {
@@ -545,7 +568,18 @@ const ModuleRouter = {
     /**
      * Render TASKS module
      */
-    renderTasksModule(module) {
+    async renderTasksModule(module) {
+        // Load objects if not in state
+        let objects = StateManager.getObjects() || [];
+        if (objects.length === 0) {
+            try {
+                objects = await API.getObjects().catch(() => []);
+                StateManager.setObjects(objects);
+            } catch (error) {
+                console.error('Error loading objects:', error);
+            }
+        }
+
         return `
             <div class="tasks-module">
                 <div class="tasks-list" id="tasks-list">
@@ -762,7 +796,7 @@ const ModuleRouter = {
             showNotification('Select a project first', 'warning');
             return;
         }
-        
+
         try {
             showNotification('Creating backup...', 'info');
             // Call backup API
@@ -798,4 +832,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Export for global access
 window.ModuleRouter = ModuleRouter;
-

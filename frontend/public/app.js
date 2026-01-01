@@ -241,7 +241,7 @@ const app = {
         if (this.projectSelectorOpen) {
             if (sidebar) sidebar.style.display = 'flex';
             btn?.classList.add('active');
-        } else {
+                } else {
             if (sidebar) sidebar.style.display = 'none';
             btn?.classList.remove('active');
         }
@@ -268,7 +268,7 @@ const app = {
                     id: project.id,
                     name: projectName
                 }));
-            } else {
+                } else {
                 headerName.textContent = 'No project selected';
                 headerContainer?.classList.add('no-project');
             }

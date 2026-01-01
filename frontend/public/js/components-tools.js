@@ -142,12 +142,16 @@ Components.addClaudeMessage = function(message, isUser = false) {
     const messageEl = document.createElement('div');
     messageEl.className = `claude-message ${isUser ? 'user' : 'assistant'}`;
 
+    // Check if message contains HTML (like buttons)
+    const isHTML = /<[a-z][\s\S]*>/i.test(message);
+    const messageContent = isHTML ? message : message.replace(/\n/g, '<br>');
+
     messageEl.innerHTML = `
         <div class="message-avatar">
             ${isUser ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>'}
         </div>
         <div class="message-content">
-            ${message.replace(/\n/g, '<br>')}
+            ${messageContent}
         </div>
     `;
 

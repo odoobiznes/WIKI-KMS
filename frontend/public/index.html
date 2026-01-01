@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>KMS - Knowledge Management System</title>
-    <link rel="stylesheet" href="styles.css?t=20251231190000">
+    <link rel="stylesheet" href="styles.css?t=20260101204130">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -15,16 +15,22 @@
         <!-- Header -->
         <header class="header">
             <div class="header-content">
-                <!-- Logo + Company Name -->
-                <div class="header-brand">
+                <!-- Logo + Company Name (clickable - returns to home) -->
+                <a href="#" class="header-brand" onclick="ModuleRouter.switchModule('ideas'); return false;" title="Go to Home">
                     <img src="images/logo.svg" alt="Logo" class="header-logo">
                     <span class="header-company-name">IT-ENTERPRISE</span>
-                </div>
+                </a>
                 
-                <!-- Current Project Name -->
-                <div class="header-current-project" id="header-current-project">
-                    <i class="fas fa-folder-open"></i>
-                    <span id="header-project-name">No project selected</span>
+                <!-- Current Project + Current Module Info -->
+                <div class="header-info-bar">
+                    <span class="header-project-info" id="header-current-project">
+                        <i class="fas fa-folder-open"></i>
+                        <span id="header-project-name">No project</span>
+                    </span>
+                    <span class="header-module-info" id="header-current-module">
+                        <i class="fas fa-lightbulb" id="header-module-icon"></i>
+                        <span id="header-module-name">IDEAS</span>
+                    </span>
                 </div>
                 
                 <div class="header-actions">
@@ -52,6 +58,11 @@
                                 <i class="fas fa-key"></i>
                                 Změnit heslo
                             </div>
+                            <div class="user-menu-item" onclick="SettingsModule.open()">
+                                <i class="fas fa-cog"></i>
+                                Nastavení
+                            </div>
+                            <div class="user-menu-divider"></div>
                             <div class="user-menu-item" onclick="app.logout()">
                                 <i class="fas fa-sign-out-alt"></i>
                                 Odhlásit se
@@ -153,47 +164,48 @@
     <div id="toast-container"></div>
 
     <!-- Scripts - Core -->
-    <script src="api.js?t=20251231181639"></script>
-    <script src="components.js?t=20251231181639"></script>
+    <script src="api.js?t=20260101204130"></script>
+    <script src="components.js?t=20260101204130"></script>
 
     <!-- Scripts - Components Modules -->
-    <script src="js/components-base.js?t=20251231181639"></script>
-    <script src="js/components-categories.js?t=20251231181639"></script>
-    <script src="js/components-objects.js?t=20251231181639"></script>
-    <script src="js/components-documents.js?t=20251231181639"></script>
-    <script src="js/components-forms.js?t=20251231181639"></script>
-    <script src="js/components-tools.js?t=20251231181639"></script>
-    <script src="js/components-shared.js?t=20251231181639"></script>
+    <script src="js/components-base.js?t=20260101204130"></script>
+    <script src="js/components-categories.js?t=20260101204130"></script>
+    <script src="js/components-objects.js?t=20260101204130"></script>
+    <script src="js/components-documents.js?t=20260101204130"></script>
+    <script src="js/components-forms.js?t=20260101204130"></script>
+    <script src="js/components-tools.js?t=20260101204130"></script>
+    <script src="js/components-shared.js?t=20260101204130"></script>
 
     <!-- Scripts - App Modules -->
-    <script src="js/app-state.js?t=20251231181639"></script>
-    <script src="js/app-auth.js?t=20251231181639"></script>
-    <script src="js/app-ui-helpers.js?t=20251231181639"></script>
-    <script src="js/app-stats.js?t=20251231181639"></script>
-    <script src="js/app-categories.js?t=20251231181639"></script>
-    <script src="js/app-objects.js?t=20251231181639"></script>
-    <script src="js/app-documents.js?t=20251231181639"></script>
-    <script src="js/app-tools.js?t=20251231181639"></script>
-    <script src="js/app-git.js?t=20251231181639"></script>
-    <script src="js/app-folders.js?t=20251231181639"></script>
-    <script src="js/app-folder-picker.js?t=20251231181639"></script>
-    <script src="js/app-import.js?t=20251231181639"></script>
-    <script src="js/app-forms.js?t=20251231181639"></script>
-    <script src="js/app-local-tools.js?t=20251231181639"></script>
-    <script src="js/app-modules.js?t=20251231190000"></script>
+    <script src="js/app-state.js?t=20260101204130"></script>
+    <script src="js/app-auth.js?t=20260101204130"></script>
+    <script src="js/app-ui-helpers.js?t=20260101204130"></script>
+    <script src="js/app-stats.js?t=20260101204130"></script>
+    <script src="js/app-categories.js?t=20260101204130"></script>
+    <script src="js/app-objects.js?t=20260101204130"></script>
+    <script src="js/app-documents.js?t=20260101204130"></script>
+    <script src="js/app-tools.js?t=20260101204130"></script>
+    <script src="js/app-git.js?t=20260101204130"></script>
+    <script src="js/app-folders.js?t=20260101204130"></script>
+    <script src="js/app-folder-picker.js?t=20260101204130"></script>
+    <script src="js/app-import.js?t=20260101204130"></script>
+    <script src="js/app-forms.js?t=20260101204130"></script>
+    <script src="js/app-local-tools.js?t=20260101204130"></script>
+    <script src="js/app-modules.js?t=20260101204130"></script>
 
     <!-- Scripts - Feature Modules -->
-    <script src="js/modules/module-develop.js?t=20251231181639"></script>
-    <script src="js/modules/module-tasks.js?t=20251231181639"></script>
-    <script src="js/modules/module-deploy.js?t=20251231181639"></script>
-    <script src="js/modules/module-ideas.js?t=20251231181639"></script>
-    <script src="js/modules/module-analytics.js?t=20251231181639"></script>
-    <script src="js/modules/module-clients.js?t=20251231181639"></script>
-    <script src="js/modules/module-finance.js?t=20251231181639"></script>
-    <script src="js/modules/module-logins.js?t=20251231181639"></script>
-    <script src="js/modules/module-resources.js?t=20251231190000"></script>
+    <script src="js/modules/module-develop.js?t=20260101204130"></script>
+    <script src="js/modules/module-tasks.js?t=20260101204130"></script>
+    <script src="js/modules/module-deploy.js?t=20260101204130"></script>
+    <script src="js/modules/module-ideas.js?t=20260101204130"></script>
+    <script src="js/modules/module-settings.js?t=20260101204130"></script>
+    <script src="js/modules/module-analytics.js?t=20260101204130"></script>
+    <script src="js/modules/module-clients.js?t=20260101204130"></script>
+    <script src="js/modules/module-finance.js?t=20260101204130"></script>
+    <script src="js/modules/module-logins.js?t=20260101204130"></script>
+    <script src="js/modules/module-resources.js?t=20260101204130"></script>
 
     <!-- Scripts - Main App -->
-    <script src="app.js?t=20251231190000"></script>
+    <script src="app.js?t=20260101204130"></script>
 </body>
 </html>

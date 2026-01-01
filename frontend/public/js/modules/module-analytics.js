@@ -1,7 +1,7 @@
 /**
  * KMS Module - ANALYTICS
  * Monitoring and analytics module
- * 
+ *
  * Features:
  * - Usage statistics
  * - Billing analytics
@@ -11,14 +11,20 @@
  */
 
 const AnalyticsModule = {
-    projectsHidden: true,
+    statsHidden: true, // Statistics section hidden by default
     dateRange: '7d',
 
     init() {
         console.log('📊 AnalyticsModule initialized');
-        
+
         document.addEventListener('moduleChanged', (e) => {
             if (e.detail.currentModule === 'analytics') {
+                this.render();
+            }
+        });
+
+        document.addEventListener('projectSelected', () => {
+            if (ModuleRouter.currentModule === 'analytics') {
                 this.render();
             }
         });
@@ -28,65 +34,78 @@ const AnalyticsModule = {
         const mainView = document.getElementById('main-view');
         if (!mainView) return;
 
-        // Note: Toolbar is rendered by ModuleRouter.renderModuleHeader()
         mainView.innerHTML = `
             <div class="analytics-module-container">
-                ${this.renderProjectToggle()}
                 ${this.renderDashboard()}
             </div>
         `;
     },
 
-    renderProjectToggle() {
-        const project = StateManager.getCurrentObject();
-        return `
-            <div class="analytics-project-section ${this.projectsHidden ? 'collapsed' : ''}">
-                <div class="project-toggle-header" onclick="AnalyticsModule.toggleProjects()">
-                    <div class="project-toggle-info">
-                        <i class="fas fa-${this.projectsHidden ? 'eye-slash' : 'eye'}"></i>
-                        <span>${this.projectsHidden ? 'Show Projects' : 'Hide Projects'}</span>
-                        ${project ? `<span class="current-project-name">| Filtering: ${project.object_name || project.name}</span>` : ''}
-                    </div>
-                    <i class="fas fa-chevron-${this.projectsHidden ? 'down' : 'up'}"></i>
-                </div>
-            </div>
-        `;
+    toggleStats() {
+        this.statsHidden = !this.statsHidden;
+        const statsSection = document.querySelector('.module-stats-section');
+        const toggleBtn = document.querySelector('.btn-icon-toggle');
+        if (statsSection) {
+            statsSection.classList.toggle('hidden', this.statsHidden);
+        }
+        if (toggleBtn) {
+            toggleBtn.classList.toggle('active', !this.statsHidden);
+            toggleBtn.querySelector('i').className = `fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}`;
+            toggleBtn.title = this.statsHidden ? 'Show Statistics' : 'Hide Statistics';
+        }
     },
 
     renderDashboard() {
         return `
             <div class="analytics-dashboard">
-                <div class="stats-row">
-                    <div class="stat-card">
-                        <div class="stat-icon"><i class="fas fa-eye"></i></div>
-                        <div class="stat-info">
-                            <div class="stat-value">1,234</div>
-                            <div class="stat-label">Total Views</div>
-                        </div>
+                <div class="module-header-row">
+                    <div class="module-header-left">
+                        <h2><i class="fas fa-chart-line"></i> Analytics</h2>
+                        <button class="btn-icon-toggle ${this.statsHidden ? '' : 'active'}"
+                                onclick="AnalyticsModule.toggleStats()"
+                                title="${this.statsHidden ? 'Show Statistics' : 'Hide Statistics'}">
+                            <i class="fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}"></i>
+                        </button>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon"><i class="fas fa-robot"></i></div>
-                        <div class="stat-info">
-                            <div class="stat-value">456</div>
-                            <div class="stat-label">AI Requests</div>
-                        </div>
+                    <div class="module-header-actions">
+                        <button class="btn btn-secondary" onclick="AnalyticsModule.render()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                        <div class="stat-info">
-                            <div class="stat-value">12</div>
-                            <div class="stat-label">Errors</div>
+                </div>
+                <div class="module-stats-section ${this.statsHidden ? 'hidden' : ''}">
+                    <div class="stats-row">
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-eye"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value">1,234</div>
+                                <div class="stat-label">Total Views</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon"><i class="fas fa-clock"></i></div>
-                        <div class="stat-info">
-                            <div class="stat-value">1.2s</div>
-                            <div class="stat-label">Avg Response</div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-robot"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value">456</div>
+                                <div class="stat-label">AI Requests</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value">12</div>
+                                <div class="stat-label">Errors</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value">1.2s</div>
+                                <div class="stat-label">Avg Response</div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="charts-row">
                     <div class="chart-card">
                         <h4><i class="fas fa-chart-line"></i> Usage Over Time</h4>
@@ -103,7 +122,7 @@ const AnalyticsModule = {
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="tables-row">
                     <div class="table-card">
                         <h4><i class="fas fa-list"></i> Recent Errors</h4>
@@ -134,10 +153,6 @@ const AnalyticsModule = {
         `;
     },
 
-    toggleProjects() {
-        this.projectsHidden = !this.projectsHidden;
-        this.render();
-    },
 
     setDateRange(range) {
         this.dateRange = range;
@@ -156,4 +171,3 @@ const AnalyticsModule = {
 
 document.addEventListener('DOMContentLoaded', () => AnalyticsModule.init());
 window.AnalyticsModule = AnalyticsModule;
-

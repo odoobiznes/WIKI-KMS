@@ -1,0 +1,9 @@
+{
+  "query": {
+    "folder": "/opt/kms/categories/odoo/subcategories/mobil/objects/bus-ticket"
+  },
+  "update": {
+    "checked": 1767059036056,
+    "version": "4.107.0"
+  }
+}

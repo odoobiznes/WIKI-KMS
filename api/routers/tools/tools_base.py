@@ -43,6 +43,7 @@ class ClaudeChatRequest(BaseModel):
     object_id: int
     message: str
     include_context: bool = True
+    api_key: Optional[str] = None  # API key from frontend (optional, falls back to env var)
 
 
 class ClaudeChatResponse(BaseModel):
@@ -191,4 +192,3 @@ def get_full_path(file_path: str) -> str:
 
 # Log environment on module load
 log_environment()
-

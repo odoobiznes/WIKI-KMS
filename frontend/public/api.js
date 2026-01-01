@@ -118,6 +118,31 @@ const API = {
         }
     },
 
+    // Helper methods for HTTP verbs
+    async get(endpoint, options = {}) {
+        return this.request(endpoint, { ...options, method: 'GET' });
+    },
+
+    async post(endpoint, data = null, options = {}) {
+        const opts = { ...options, method: 'POST' };
+        if (data) {
+            opts.body = typeof data === 'string' ? data : JSON.stringify(data);
+        }
+        return this.request(endpoint, opts);
+    },
+
+    async put(endpoint, data = null, options = {}) {
+        const opts = { ...options, method: 'PUT' };
+        if (data) {
+            opts.body = typeof data === 'string' ? data : JSON.stringify(data);
+        }
+        return this.request(endpoint, opts);
+    },
+
+    async delete(endpoint, options = {}) {
+        return this.request(endpoint, { ...options, method: 'DELETE' });
+    },
+
     async request(endpoint, options = {}) {
         // Skip auth check for login and refresh endpoints
         if (!endpoint.includes('/auth/login') && !endpoint.includes('/auth/refresh')) {
@@ -403,12 +428,24 @@ const API = {
     },
 
     async claudeChat(objectId, message, includeContext = true) {
+        // Get API key from localStorage (AI settings)
+        let apiKey = null;
+        try {
+            const settings = JSON.parse(localStorage.getItem('kms-ai-settings') || '{}');
+            const claudeProvider = settings.providers?.find(p => p.type === 'claude' && p.enabled);
+            if (claudeProvider && claudeProvider.apiKey) {
+                apiKey = claudeProvider.apiKey;
+            }
+        } catch (e) {
+            console.warn('Error loading Claude API key from settings:', e);
+        }
         return this.request('/tools/claude/chat', {
             method: 'POST',
             body: JSON.stringify({
                 object_id: objectId,
                 message: message,
-                include_context: includeContext
+                include_context: includeContext,
+                api_key: apiKey  // Send API key from frontend settings
             })
         });
     },

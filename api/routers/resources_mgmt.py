@@ -152,6 +152,7 @@ async def list_resources(
 
 @router.get("/conflicts")
 async def get_conflicts(
+    include_resolved: bool = False,
     current_user: dict = Depends(get_current_active_user)
 ):
     """Get list of resource conflicts"""
@@ -159,10 +160,50 @@ async def get_conflicts(
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-        cursor.execute("""
-            SELECT * FROM v_resource_conflicts
-            ORDER BY severity DESC, detected_at DESC
-        """)
+        # First, detect any new conflicts
+        cursor.execute("SELECT detect_and_log_conflicts() as new_conflicts")
+        new_conflicts = cursor.fetchone()['new_conflicts']
+        
+        if new_conflicts > 0:
+            logger.info(f"Detected {new_conflicts} new conflicts")
+
+        # Get conflicts from view
+        if include_resolved:
+            cursor.execute("""
+                SELECT 
+                    c.id as conflict_id,
+                    c.conflict_type,
+                    c.severity,
+                    c.detected_at,
+                    c.resolved_at,
+                    c.resolution_notes,
+                    c.auto_detected,
+                    c.notified,
+                    r1.id as resource_id_1,
+                    r1.resource_type::text as resource_type,
+                    r1.resource_name as resource_name_1,
+                    r1.resource_value as resource_value_1,
+                    r1.owner_service as owner_service_1,
+                    r1.status::text as status_1,
+                    r2.id as resource_id_2,
+                    r2.resource_name as resource_name_2,
+                    r2.resource_value as resource_value_2,
+                    r2.owner_service as owner_service_2,
+                    r2.status::text as status_2
+                FROM resource_conflicts c
+                JOIN system_resources r1 ON c.resource_id_1 = r1.id
+                JOIN system_resources r2 ON c.resource_id_2 = r2.id
+                ORDER BY 
+                    CASE c.severity 
+                        WHEN 'critical' THEN 1 
+                        WHEN 'high' THEN 2 
+                        WHEN 'warning' THEN 3 
+                        ELSE 4 
+                    END,
+                    c.detected_at DESC
+            """)
+        else:
+            cursor.execute("SELECT * FROM v_resource_conflicts")
 
         conflicts = cursor.fetchall()
 
@@ -185,7 +226,21 @@ async def get_summary(
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-        cursor.execute("SELECT * FROM v_active_resources")
+        # Get summary by resource type
+        # Note: resource_status enum values: 'active', 'reserved', 'deprecated', 'available', 'conflict'
+        cursor.execute("""
+            SELECT
+                resource_type,
+                COUNT(*) as count,
+                COUNT(CASE WHEN status = 'active' THEN 1 END) as active_count,
+                COUNT(CASE WHEN status = 'reserved' THEN 1 END) as reserved_count,
+                COUNT(CASE WHEN status = 'deprecated' THEN 1 END) as deprecated_count,
+                COUNT(CASE WHEN status = 'available' THEN 1 END) as available_count,
+                COUNT(CASE WHEN status = 'conflict' THEN 1 END) as conflict_count
+            FROM system_resources
+            GROUP BY resource_type
+            ORDER BY resource_type
+        """)
         summary = cursor.fetchall()
 
         cursor.close()
@@ -237,7 +292,7 @@ async def create_resource(
 ):
     """
     Allocate a new system resource
-    
+
     Checks for conflicts before creating
     """
     try:
@@ -246,14 +301,14 @@ async def create_resource(
 
         # Check if resource is already allocated
         cursor.execute("""
-            SELECT id, resource_name, owner_service 
-            FROM system_resources 
-            WHERE resource_type = %s 
-            AND resource_value = %s 
-            AND environment = %s 
+            SELECT id, resource_name, owner_service
+            FROM system_resources
+            WHERE resource_type = %s
+            AND resource_value = %s
+            AND environment = %s
             AND status IN ('active', 'reserved')
         """, (resource.resource_type, resource.resource_value, resource.environment))
-        
+
         existing = cursor.fetchone()
         if existing:
             raise HTTPException(
@@ -364,7 +419,7 @@ async def update_resource(
         update_values.append(resource_id)
 
         cursor.execute(f"""
-            UPDATE system_resources 
+            UPDATE system_resources
             SET {', '.join(update_fields)}
             WHERE id = %s
             RETURNING *
@@ -413,10 +468,10 @@ async def release_resource(
         if resource['is_locked']:
             raise HTTPException(status_code=403, detail="Resource is locked and cannot be released")
 
-        # Mark as released
+        # Mark as deprecated (released)
         cursor.execute("""
-            UPDATE system_resources 
-            SET status = 'released', released_at = NOW()
+            UPDATE system_resources
+            SET status = 'deprecated', released_at = NOW()
             WHERE id = %s
         """, (resource_id,))
 
@@ -424,7 +479,7 @@ async def release_resource(
         cursor.execute("""
             INSERT INTO resource_allocation_history (
                 resource_id, action, old_status, new_status, changed_by
-            ) VALUES (%s, 'released', %s, 'released', %s)
+            ) VALUES (%s, 'released', %s, 'deprecated', %s)
         """, (resource_id, resource['status'], current_user["id"]))
 
         conn.commit()
@@ -451,18 +506,14 @@ async def check_availability(
     check: AvailabilityCheck,
     current_user: dict = Depends(get_current_active_user)
 ):
-    """Check if a resource value is available"""
+    """Check if a resource value is available with detailed conflict info"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
+        # Use the database function for comprehensive check
         cursor.execute("""
-            SELECT COUNT(*) as count
-            FROM system_resources
-            WHERE resource_type = %s
-            AND resource_value = %s
-            AND environment = %s
-            AND status IN ('active', 'reserved')
+            SELECT * FROM check_resource_conflict(%s::resource_type, %s, %s)
         """, (check.resource_type, check.resource_value, check.environment))
 
         result = cursor.fetchone()
@@ -470,17 +521,97 @@ async def check_availability(
         cursor.close()
         conn.close()
 
-        is_available = result['count'] == 0
+        if result and result['has_conflict']:
+            return {
+                "available": False,
+                "resource_type": check.resource_type,
+                "resource_value": check.resource_value,
+                "environment": check.environment,
+                "conflict": {
+                    "resource_id": result['conflict_resource_id'],
+                    "resource_name": result['conflict_resource_name'],
+                    "owner_service": result['conflict_owner_service'],
+                    "status": result['conflict_status'],
+                    "message": result['message']
+                }
+            }
 
         return {
-            "available": is_available,
+            "available": True,
             "resource_type": check.resource_type,
             "resource_value": check.resource_value,
-            "environment": check.environment
+            "environment": check.environment,
+            "conflict": None
         }
 
     except Exception as e:
         logger.error(f"Error checking availability: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/resolve-conflict/{conflict_id}")
+async def resolve_conflict(
+    conflict_id: int,
+    resolution_notes: str = None,
+    current_user: dict = Depends(get_current_active_user)
+):
+    """Mark a conflict as resolved"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            UPDATE resource_conflicts
+            SET resolved_at = NOW(),
+                resolved_by = %s,
+                resolution_notes = %s
+            WHERE id = %s
+            RETURNING *
+        """, (current_user["id"], resolution_notes, conflict_id))
+
+        conflict = cursor.fetchone()
+
+        if not conflict:
+            raise HTTPException(status_code=404, detail="Conflict not found")
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        logger.info(f"Conflict {conflict_id} resolved by {current_user['username']}")
+
+        return dict(conflict)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resolving conflict: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/detect-conflicts")
+async def detect_conflicts(
+    current_user: dict = Depends(get_current_active_user)
+):
+    """Manually trigger conflict detection scan"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("SELECT detect_and_log_conflicts() as new_conflicts")
+        result = cursor.fetchone()
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return {
+            "new_conflicts_detected": result['new_conflicts'],
+            "message": f"Scan complete. Found {result['new_conflicts']} new conflicts."
+        }
+
+    except Exception as e:
+        logger.error(f"Error detecting conflicts: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -551,7 +682,7 @@ async def get_resource_history(
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
         cursor.execute("""
-            SELECT 
+            SELECT
                 rh.*,
                 u.username as changed_by_username
             FROM resource_allocation_history rh

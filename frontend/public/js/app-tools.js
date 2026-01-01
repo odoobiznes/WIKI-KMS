@@ -185,7 +185,18 @@ const AppTools = {
             console.error('Claude error:', error);
             const chat = document.getElementById('claude-chat');
             chat.removeChild(chat.lastChild);
-            Components.addClaudeMessage('Sorry, I encountered an error. Please try again.', false);
+
+            // Check if error message contains configuration instructions
+            const errorMessage = error.message || error.toString() || 'Sorry, I encountered an error. Please try again.';
+            let displayMessage = errorMessage;
+
+            // If it's a configuration error, add a button to open Settings
+            if (errorMessage.includes('nakonfigurován') || errorMessage.includes('API klíč') || errorMessage.includes('Settings')) {
+                displayMessage = errorMessage.replace(/\n/g, '<br>');
+                displayMessage += '<br><br><button onclick="if(typeof SettingsModule !== \'undefined\') { SettingsModule.open(\'ai-agents\'); app.closeClaudeModal(); }" style="margin-top: 10px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"><i class="fas fa-cog"></i> Otevřít Settings</button>';
+            }
+
+            Components.addClaudeMessage(displayMessage, false);
         }
     },
 
@@ -237,4 +248,3 @@ const AppTools = {
 if (typeof window !== 'undefined') {
     window.AppTools = AppTools;
 }
-

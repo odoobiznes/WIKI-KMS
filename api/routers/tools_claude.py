@@ -30,9 +30,15 @@ WIKISYS_PATHS = [
 ]
 
 
-def get_claude_client() -> Optional[object]:
-    """Get Claude API client if API key is configured"""
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+def get_claude_client(api_key: Optional[str] = None) -> Optional[object]:
+    """Get Claude API client if API key is configured
+
+    Args:
+        api_key: API key from request (optional). If not provided, falls back to ANTHROPIC_API_KEY env var.
+    """
+    # Use provided API key or fall back to environment variable
+    if not api_key:
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
 
     if not api_key:
         return None
@@ -49,25 +55,25 @@ def load_wikisys_rules() -> str:
     Returns formatted rules text for AI assistant guidance
     """
     rules_content = []
-    
+
     # Priority rules files to load
     priority_files = [
         "rules/coding-standards.md",
-        "rules/project-structure.md", 
+        "rules/project-structure.md",
         "rules/git-workflow.md",
         "rules/documentation.md",
         "rules/security.md",
         "RULES.md",
         "standards.md"
     ]
-    
+
     for wikisys_path in WIKISYS_PATHS:
         base_path = Path(wikisys_path)
         if not base_path.exists():
             continue
-            
+
         logger.debug(f"Loading WikiSys rules from: {base_path}")
-        
+
         # Load priority files first
         for rule_file in priority_files:
             file_path = base_path / rule_file
@@ -79,7 +85,7 @@ def load_wikisys_rules() -> str:
                         logger.debug(f"  Loaded: {rule_file}")
                 except Exception as e:
                     logger.warning(f"  Failed to load {rule_file}: {e}")
-        
+
         # Also check for any .md files in rules directory
         rules_dir = base_path / "rules"
         if rules_dir.exists():
@@ -91,11 +97,11 @@ def load_wikisys_rules() -> str:
                             rules_content.append(f"### WikiSys Rule: {md_file.name}\n{content[:2000]}")
                     except Exception:
                         pass
-        
+
         # Stop after finding first valid WikiSys location
         if rules_content:
             break
-    
+
     if rules_content:
         return "\n\n---\n\n".join(rules_content)
     return ""
@@ -139,24 +145,34 @@ async def chat_with_claude(
     project_name: str,
     project_path: str,
     user_message: str,
-    include_context: bool = True
+    include_context: bool = True,
+    api_key: Optional[str] = None
 ) -> tuple[str, int]:
     """
     Chat with Claude AI with project context
 
+    Args:
+        project_name: Name of the project
+        project_path: Path to the project directory
+        user_message: User's message
+        include_context: Whether to include project context
+        api_key: API key from frontend (optional, falls back to env var)
+
     Returns:
         (response_text, context_files_count)
     """
-    client = get_claude_client()
+    client = get_claude_client(api_key)
 
     if not client:
         return (
-            "⚠️ Claude AI is not configured. Please set ANTHROPIC_API_KEY environment variable.\n\n"
-            "To enable Claude AI:\n"
-            "1. Get API key from https://console.anthropic.com/\n"
-            "2. Add to /etc/systemd/system/kms-api.service:\n"
-            "   Environment=\"ANTHROPIC_API_KEY=sk-ant-api03-...\"\n"
-            "3. Restart: sudo systemctl daemon-reload && sudo systemctl restart kms-api",
+            "⚠️ Claude AI není nakonfigurován. Nastavte API klíč.\n\n"
+            "Jak nastavit Claude API:\n"
+            "1. Získejte API klíč z https://console.anthropic.com/\n"
+            "2. V KMS: Klikněte na ikonu uživatele (vpravo nahoře) → Settings → AI Agents → Claude\n"
+            "3. Vložte API klíč do pole \"API Key\"\n"
+            "4. Zaškrtněte \"Enabled\"\n"
+            "5. Klikněte na \"Save Changes\"\n\n"
+            "Po uložení můžete znovu použít Claude AI.",
             0
         )
 
@@ -168,7 +184,7 @@ async def chat_with_claude(
     if include_context:
         context = load_project_context(project_path)
         context_files_count = context.count("File:")
-        
+
         # Load WikiSys rules for guidance
         wikisys_rules = load_wikisys_rules()
         if wikisys_rules:

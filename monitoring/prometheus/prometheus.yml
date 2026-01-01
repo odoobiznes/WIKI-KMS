@@ -1,0 +1,43 @@
+# KMS Prometheus Configuration
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Load rules once and periodically evaluate them
+rule_files: []
+
+# Scrape configurations
+scrape_configs:
+  # KMS API metrics
+  - job_name: 'kms-api'
+    static_configs:
+      - targets: ['localhost:8000']
+    metrics_path: '/api/metrics'
+    scrape_interval: 10s
+
+  # Node exporter (system metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['localhost:9100']
+
+  # PostgreSQL exporter
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['localhost:9187']
+
+  # Nginx metrics
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['localhost:9113']
+
+  # Process exporter
+  - job_name: 'process'
+    static_configs:
+      - targets: ['localhost:9256']
+

@@ -1,7 +1,7 @@
 /**
  * KMS Module - DEPLOY
  * Release Phase module for deployment and client management
- * 
+ *
  * Features:
  * - Client management
  * - Export & Backup
@@ -12,15 +12,22 @@
 const DeployModule = {
     clients: [],
     deployments: [],
+    statsHidden: true, // Statistics section hidden by default
 
     /**
      * Initialize DEPLOY module
      */
     init() {
         console.log('🚀 DeployModule initialized');
-        
+
         document.addEventListener('moduleChanged', (e) => {
             if (e.detail.currentModule === 'deploy') {
+                this.render();
+            }
+        });
+
+        document.addEventListener('projectSelected', () => {
+            if (ModuleRouter.currentModule === 'deploy') {
                 this.render();
             }
         });
@@ -35,12 +42,86 @@ const DeployModule = {
 
         const currentProject = StateManager.getCurrentObject();
 
-        // Note: Toolbar is rendered by ModuleRouter.renderModuleHeader()
         mainView.innerHTML = `
             <div class="deploy-module-container">
+                ${this.renderModuleHeader()}
                 ${currentProject ? this.renderDeployContent(currentProject) : this.renderNoProject()}
             </div>
         `;
+    },
+
+    renderModuleHeader() {
+        return `
+            <div class="module-header-row">
+                <div class="module-header-left">
+                    <h2><i class="fas fa-rocket"></i> Deploy</h2>
+                    <button class="btn-icon-toggle ${this.statsHidden ? '' : 'active'}"
+                            onclick="DeployModule.toggleStats()"
+                            title="${this.statsHidden ? 'Show Statistics' : 'Hide Statistics'}">
+                        <i class="fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}"></i>
+                    </button>
+                </div>
+                <div class="module-header-actions">
+                    <button class="btn btn-secondary" onclick="DeployModule.exportBackup()">
+                        <i class="fas fa-download"></i> Export & Backup
+                    </button>
+                    <button class="btn btn-secondary" onclick="DeployModule.testDeploy()">
+                        <i class="fas fa-vial"></i> Test Deploy
+                    </button>
+                    <button class="btn btn-primary" onclick="DeployModule.deploy()">
+                        <i class="fas fa-rocket"></i> Deploy
+                    </button>
+                    <button class="btn btn-secondary" onclick="DeployModule.render()">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="module-stats-section ${this.statsHidden ? 'hidden' : ''}">
+                ${this.renderStats()}
+            </div>
+        `;
+    },
+
+    renderStats() {
+        return `
+            <div class="resources-stats">
+                <div class="stat-card stat-primary">
+                    <div class="stat-icon"><i class="fas fa-users"></i></div>
+                    <div class="stat-content">
+                        <h3>${this.clients.length}</h3>
+                        <p>Clients</p>
+                    </div>
+                </div>
+                <div class="stat-card stat-info">
+                    <div class="stat-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                    <div class="stat-content">
+                        <h3>${this.deployments.length}</h3>
+                        <p>Deployments</p>
+                    </div>
+                </div>
+                <div class="stat-card stat-secondary">
+                    <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                    <div class="stat-content">
+                        <h3>0</h3>
+                        <p>Successful</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    toggleStats() {
+        this.statsHidden = !this.statsHidden;
+        const statsSection = document.querySelector('.deploy-module-container .module-stats-section');
+        const toggleBtn = document.querySelector('.deploy-module-container .btn-icon-toggle');
+        if (statsSection) {
+            statsSection.classList.toggle('hidden', this.statsHidden);
+        }
+        if (toggleBtn) {
+            toggleBtn.classList.toggle('active', !this.statsHidden);
+            toggleBtn.querySelector('i').className = `fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}`;
+            toggleBtn.title = this.statsHidden ? 'Show Statistics' : 'Hide Statistics';
+        }
     },
 
     /**
@@ -293,14 +374,14 @@ const DeployModule = {
                 </div>
             </div>
         `;
-        
+
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
     executeDeploy() {
         const target = document.querySelector('input[name="deploy-target"]:checked')?.value;
         showNotification(`Deploying to ${target}...`, 'info');
-        
+
         setTimeout(() => {
             showNotification('Deployment completed successfully!', 'success');
             this.closeModal('deploy-wizard-modal');
@@ -357,7 +438,7 @@ const DeployModule = {
                 </div>
             </div>
         `;
-        
+
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
@@ -422,4 +503,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Export for global access
 window.DeployModule = DeployModule;
-

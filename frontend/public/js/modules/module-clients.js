@@ -1,7 +1,7 @@
 /**
  * KMS Module - CLIENTS
  * Customer Management module
- * 
+ *
  * Features:
  * - Client list with filtering
  * - Billing info, contacts, credentials
@@ -11,15 +11,22 @@
  */
 
 const ClientsModule = {
-    projectsHidden: true,
+    statsHidden: true, // Statistics section hidden by default
     clients: [],
     currentClient: null,
 
     init() {
         console.log('👥 ClientsModule initialized');
-        
+
         document.addEventListener('moduleChanged', (e) => {
             if (e.detail.currentModule === 'clients') {
+                this.loadClients();
+                this.render();
+            }
+        });
+
+        document.addEventListener('projectSelected', () => {
+            if (ModuleRouter.currentModule === 'clients') {
                 this.loadClients();
                 this.render();
             }
@@ -28,38 +35,96 @@ const ClientsModule = {
 
     loadClients() {
         // Demo data
-        this.clients = [
-            { id: 1, name: 'ABC Company', email: 'contact@abc.cz', phone: '+420 123 456 789', status: 'active', totalBilled: 125000 },
-            { id: 2, name: 'XYZ Corp', email: 'info@xyz.com', phone: '+420 987 654 321', status: 'active', totalBilled: 89000 },
-            { id: 3, name: 'Tech Solutions', email: 'support@techsol.cz', phone: '+420 111 222 333', status: 'pending', totalBilled: 0 }
+        const allClients = [
+            { id: 1, name: 'ABC Company', email: 'contact@abc.cz', phone: '+420 123 456 789', status: 'active', totalBilled: 125000, project_id: 1, project_name: 'tests' },
+            { id: 2, name: 'XYZ Corp', email: 'info@xyz.com', phone: '+420 987 654 321', status: 'active', totalBilled: 89000, project_id: 2, project_name: 'other-project' },
+            { id: 3, name: 'Tech Solutions', email: 'support@techsol.cz', phone: '+420 111 222 333', status: 'pending', totalBilled: 0, project_id: 1, project_name: 'tests' }
         ];
+
+        // Filter by selected project
+        const currentProject = StateManager.getCurrentObject();
+        if (currentProject) {
+            const projectName = currentProject.object_name || currentProject.name || '';
+            const projectId = currentProject.id;
+
+            this.clients = allClients.filter(client => {
+                return client.project_id === projectId ||
+                       (client.project_name && projectName &&
+                        client.project_name.toLowerCase().includes(projectName.toLowerCase()));
+            });
+        } else {
+            this.clients = allClients;
+        }
     },
 
     render() {
         const mainView = document.getElementById('main-view');
         if (!mainView) return;
 
-        // Note: Toolbar is rendered by ModuleRouter.renderModuleHeader()
         mainView.innerHTML = `
             <div class="clients-module-container">
-                ${this.renderProjectToggle()}
+                ${this.renderModuleHeader()}
                 ${this.renderClientsList()}
             </div>
         `;
     },
 
-    renderProjectToggle() {
+    renderModuleHeader() {
+        const stats = this.calculateStats();
         return `
-            <div class="clients-project-section ${this.projectsHidden ? 'collapsed' : ''}">
-                <div class="project-toggle-header" onclick="ClientsModule.toggleProjects()">
-                    <div class="project-toggle-info">
-                        <i class="fas fa-${this.projectsHidden ? 'eye-slash' : 'eye'}"></i>
-                        <span>${this.projectsHidden ? 'Show Projects' : 'Hide Projects'}</span>
+            <div class="module-header-row">
+                <div class="module-header-left">
+                    <h2><i class="fas fa-users"></i> Clients</h2>
+                    <button class="btn-icon-toggle ${this.statsHidden ? '' : 'active'}"
+                            onclick="ClientsModule.toggleStats()"
+                            title="${this.statsHidden ? 'Show Statistics' : 'Hide Statistics'}">
+                        <i class="fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}"></i>
+                    </button>
+                </div>
+                <div class="module-header-actions">
+                    <button class="btn btn-primary" onclick="ClientsModule.showNewClientModal()">
+                        <i class="fas fa-plus"></i> New Client
+                    </button>
+                    <button class="btn btn-secondary" onclick="ClientsModule.loadClients(); ClientsModule.render();">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="module-stats-section ${this.statsHidden ? 'hidden' : ''}">
+                <div class="resources-stats">
+                    <div class="stat-card stat-primary">
+                        <div class="stat-icon"><i class="fas fa-users"></i></div>
+                        <div class="stat-content">
+                            <h3>${stats.total}</h3>
+                            <p>Total Clients</p>
+                        </div>
                     </div>
-                    <i class="fas fa-chevron-${this.projectsHidden ? 'down' : 'up'}"></i>
+                    <div class="stat-card stat-info">
+                        <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                        <div class="stat-content">
+                            <h3>${stats.active}</h3>
+                            <p>Active</p>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-secondary">
+                        <div class="stat-icon"><i class="fas fa-money-bill-wave"></i></div>
+                        <div class="stat-content">
+                            <h3>${stats.totalBilled.toLocaleString()}</h3>
+                            <p>Total Billed (CZK)</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
+    },
+
+    calculateStats() {
+        return {
+            total: this.clients.length,
+            active: this.clients.filter(c => c.status === 'active').length,
+            pending: this.clients.filter(c => c.status === 'pending').length,
+            totalBilled: this.clients.reduce((sum, c) => sum + (c.totalBilled || 0), 0)
+        };
     },
 
     renderClientsList() {
@@ -98,7 +163,7 @@ const ClientsModule = {
                             </div>
                         </div>
                     `).join('')}
-                    
+
                     <div class="client-card add-client" onclick="ClientsModule.showNewClientModal()">
                         <i class="fas fa-plus"></i>
                         <span>Add Client</span>
@@ -108,9 +173,18 @@ const ClientsModule = {
         `;
     },
 
-    toggleProjects() {
-        this.projectsHidden = !this.projectsHidden;
-        this.render();
+    toggleStats() {
+        this.statsHidden = !this.statsHidden;
+        const statsSection = document.querySelector('.module-stats-section');
+        const toggleBtn = document.querySelector('.btn-icon-toggle');
+        if (statsSection) {
+            statsSection.classList.toggle('hidden', this.statsHidden);
+        }
+        if (toggleBtn) {
+            toggleBtn.classList.toggle('active', !this.statsHidden);
+            toggleBtn.querySelector('i').className = `fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}`;
+            toggleBtn.title = this.statsHidden ? 'Show Statistics' : 'Hide Statistics';
+        }
     },
 
     searchClients(term) {
@@ -173,7 +247,7 @@ const ClientsModule = {
     createClient() {
         const name = document.getElementById('client-name').value;
         const email = document.getElementById('client-email').value;
-        
+
         if (!name || !email) {
             showNotification('Please fill required fields', 'warning');
             return;
@@ -224,4 +298,3 @@ const ClientsModule = {
 
 document.addEventListener('DOMContentLoaded', () => ClientsModule.init());
 window.ClientsModule = ClientsModule;
-

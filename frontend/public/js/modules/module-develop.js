@@ -1,7 +1,7 @@
 /**
  * KMS Module - DEVELOP
  * Development Phase module with tabs and stage workflow
- * 
+ *
  * Features:
  * - Tabs: Overview, Phases, Tasks, Guides, Attachments, Comments, History
  * - Stage workflow: Analyze → CreateTZ → Approve → Realize → Security → Test → Fix → Docs
@@ -12,7 +12,8 @@
 const DevelopModule = {
     currentTab: 'overview',
     currentStage: 0,
-    
+    statsHidden: true, // Statistics section hidden by default
+
     // Stage definitions
     stages: [
         { id: 'analyze', name: 'Analyze', icon: 'fa-search', description: 'Analyze requirements and existing code' },
@@ -41,7 +42,7 @@ const DevelopModule = {
      */
     init() {
         console.log('🔧 DevelopModule initialized');
-        
+
         // Listen for module changes
         document.addEventListener('moduleChanged', (e) => {
             if (e.detail.currentModule === 'develop') {
@@ -66,15 +67,100 @@ const DevelopModule = {
 
         const currentObject = StateManager.getCurrentObject();
 
-        // Note: Toolbar is rendered by ModuleRouter.renderModuleHeader()
         mainView.innerHTML = `
             <div class="develop-module-container">
+                ${this.renderModuleHeader()}
                 ${currentObject ? this.renderProjectContent(currentObject) : this.renderNoProject()}
             </div>
         `;
 
-        // Setup tab event listeners
-        this.setupEventListeners();
+        // Load history if project is selected
+        if (currentObject) {
+            setTimeout(() => this.loadWorkHistory(currentObject.id), 100);
+        }
+    },
+
+    renderModuleHeader() {
+        return `
+            <div class="module-header-row">
+                <div class="module-header-left">
+                    <h2><i class="fas fa-code"></i> Develop</h2>
+                    <button class="btn-icon-toggle ${this.statsHidden ? '' : 'active'}"
+                            onclick="DevelopModule.toggleStats()"
+                            title="${this.statsHidden ? 'Show Statistics' : 'Hide Statistics'}">
+                        <i class="fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}"></i>
+                    </button>
+                </div>
+                <div class="module-header-actions">
+                    <button class="btn btn-secondary" onclick="DevelopModule.openTerminal()">
+                        <i class="fas fa-terminal"></i> Terminal
+                    </button>
+                    <button class="btn btn-secondary" onclick="DevelopModule.runAnalysis()">
+                        <i class="fas fa-search"></i> Analysis
+                    </button>
+                    <button class="btn btn-secondary" onclick="DevelopModule.loadTasks()">
+                        <i class="fas fa-list"></i> Tasks
+                    </button>
+                    <button class="btn btn-secondary" onclick="DevelopModule.runTest()">
+                        <i class="fas fa-vial"></i> Test
+                    </button>
+                    <button class="btn btn-secondary" onclick="DevelopModule.runFix()">
+                        <i class="fas fa-wrench"></i> Fix
+                    </button>
+                    <button class="btn btn-secondary" onclick="DevelopModule.generateDocs()">
+                        <i class="fas fa-book"></i> Docs
+                    </button>
+                    <button class="btn btn-primary" onclick="DevelopModule.incrementVersion()">
+                        <i class="fas fa-plus-circle"></i> Version +1
+                    </button>
+                </div>
+            </div>
+            <div class="module-stats-section ${this.statsHidden ? 'hidden' : ''}">
+                ${this.renderStats()}
+            </div>
+        `;
+    },
+
+    renderStats() {
+        return `
+            <div class="resources-stats">
+                <div class="stat-card stat-primary">
+                    <div class="stat-icon"><i class="fas fa-code-branch"></i></div>
+                    <div class="stat-content">
+                        <h3>${this.currentStage + 1}/${this.stages.length}</h3>
+                        <p>Current Stage</p>
+                    </div>
+                </div>
+                <div class="stat-card stat-info">
+                    <div class="stat-icon"><i class="fas fa-tasks"></i></div>
+                    <div class="stat-content">
+                        <h3>0</h3>
+                        <p>Tasks</p>
+                    </div>
+                </div>
+                <div class="stat-card stat-secondary">
+                    <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                    <div class="stat-content">
+                        <h3>0</h3>
+                        <p>Completed</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    toggleStats() {
+        this.statsHidden = !this.statsHidden;
+        const statsSection = document.querySelector('.develop-module-container .module-stats-section');
+        const toggleBtn = document.querySelector('.develop-module-container .btn-icon-toggle');
+        if (statsSection) {
+            statsSection.classList.toggle('hidden', this.statsHidden);
+        }
+        if (toggleBtn) {
+            toggleBtn.classList.toggle('active', !this.statsHidden);
+            toggleBtn.querySelector('i').className = `fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}`;
+            toggleBtn.title = this.statsHidden ? 'Show Statistics' : 'Hide Statistics';
+        }
     },
 
     /**
@@ -82,10 +168,31 @@ const DevelopModule = {
      */
     renderProjectContent(project) {
         return `
-            ${this.renderStageWorkflow()}
-            ${this.renderTabs()}
-            <div class="develop-content" id="develop-tab-content">
-                ${this.renderTabContent()}
+            <div class="develop-content" id="develop-content">
+                ${this.renderOverviewContent()}
+            </div>
+        `;
+    },
+
+    /**
+     * Render overview content (simplified, no tabs)
+     */
+    renderOverviewContent() {
+        const project = StateManager.getCurrentObject();
+        if (!project) return '<p>No project selected</p>';
+
+        return `
+            <div class="develop-overview">
+                <div class="develop-overview-card">
+                    <h3><i class="fas fa-code"></i> ${project.object_name || 'Unnamed Project'}</h3>
+                    <p>Use the buttons in the header to perform development tasks.</p>
+                </div>
+                <div class="develop-history-card">
+                    <h4><i class="fas fa-history"></i> Work History & Log</h4>
+                    <div class="develop-history-list" id="develop-history-list">
+                        <div class="history-loading">Loading history...</div>
+                    </div>
+                </div>
             </div>
         `;
     },
@@ -105,484 +212,128 @@ const DevelopModule = {
         `;
     },
 
-    /**
-     * Render stage workflow
-     */
-    renderStageWorkflow() {
-        return `
-            <div class="develop-stage-workflow">
-                <div class="stage-workflow-header">
-                    <h4><i class="fas fa-stream"></i> Development Workflow</h4>
-                    <div class="stage-progress">
-                        Stage ${this.currentStage + 1} of ${this.stages.length}
-                    </div>
-                </div>
-                <div class="stage-workflow-content">
-                    ${this.stages.map((stage, index) => `
-                        <div class="stage-step ${index < this.currentStage ? 'completed' : ''} ${index === this.currentStage ? 'active' : ''}"
-                             onclick="DevelopModule.setStage(${index})"
-                             title="${stage.description}">
-                            <div class="stage-step-icon">
-                                ${index < this.currentStage ? '<i class="fas fa-check"></i>' : `<i class="fas ${stage.icon}"></i>`}
-                            </div>
-                            <div class="stage-step-name">${stage.name}</div>
-                            ${index < this.stages.length - 1 ? '<div class="stage-step-line"></div>' : ''}
-                        </div>
-                    `).join('')}
-                </div>
-                <div class="stage-actions">
-                    <button class="btn btn-secondary" onclick="DevelopModule.prevStage()" ${this.currentStage === 0 ? 'disabled' : ''}>
-                        <i class="fas fa-arrow-left"></i> Previous
-                    </button>
-                    <button class="btn btn-primary" onclick="DevelopModule.nextStage()" ${this.currentStage === this.stages.length - 1 ? 'disabled' : ''}>
-                        Next <i class="fas fa-arrow-right"></i>
-                    </button>
-                    <button class="btn btn-success" onclick="DevelopModule.autoProcess()">
-                        <i class="fas fa-magic"></i> Auto Process
-                    </button>
-                </div>
-            </div>
-        `;
-    },
+
 
     /**
-     * Render tabs
+     * Run tests
      */
-    renderTabs() {
-        return `
-            <div class="develop-tabs">
-                ${this.tabs.map(tab => `
-                    <button class="develop-tab ${this.currentTab === tab.id ? 'active' : ''}"
-                            onclick="DevelopModule.switchTab('${tab.id}')"
-                            data-tab="${tab.id}">
-                        <i class="fas ${tab.icon}"></i>
-                        <span>${tab.name}</span>
-                    </button>
-                `).join('')}
-            </div>
-        `;
-    },
-
-    /**
-     * Render tab content
-     */
-    renderTabContent() {
-        switch (this.currentTab) {
-            case 'overview':
-                return this.renderOverviewTab();
-            case 'phases':
-                return this.renderPhasesTab();
-            case 'tasks':
-                return this.renderTasksTab();
-            case 'guides':
-                return this.renderGuidesTab();
-            case 'attachments':
-                return this.renderAttachmentsTab();
-            case 'comments':
-                return this.renderCommentsTab();
-            case 'history':
-                return this.renderHistoryTab();
-            default:
-                return '<p>Tab content not found</p>';
+    runTest() {
+        const project = StateManager.getCurrentObject();
+        if (!project) {
+            showNotification('No project selected', 'warning');
+            return;
         }
+        showNotification('Running tests...', 'info');
+        this.logAction('test', 'Ran tests');
+        // TODO: Implement test execution
     },
 
+    /**
+     * Run fixes
+     */
+    runFix() {
+        const project = StateManager.getCurrentObject();
+        if (!project) {
+            showNotification('No project selected', 'warning');
+            return;
+        }
+        showNotification('Running fixes...', 'info');
+        this.logAction('fix', 'Ran fixes');
+        // TODO: Implement fix execution
+    },
+
+    /**
+     * Generate documentation
+     */
+    generateDocs() {
+        const project = StateManager.getCurrentObject();
+        if (!project) {
+            showNotification('No project selected', 'warning');
+            return;
+        }
+        showNotification('Generating documentation...', 'info');
+        this.logAction('docs', 'Generated documentation');
+        // TODO: Implement documentation generation
+    },
+
+    // OLD FUNCTIONS - TO BE REMOVED (keeping for reference)
     /**
      * Render Overview tab
      */
-    renderOverviewTab() {
-        const project = StateManager.getCurrentObject();
-        
-        return `
-            <div class="tab-content overview-tab">
-                <div class="overview-grid">
-                    <div class="overview-card project-info-card">
-                        <h4><i class="fas fa-info-circle"></i> Project Info</h4>
-                        <div class="info-row">
-                            <span class="info-label">Name:</span>
-                            <span class="info-value">${project?.object_name || project?.name || 'N/A'}</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">Path:</span>
-                            <span class="info-value">${project?.file_path || 'N/A'}</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">Stage:</span>
-                            <span class="info-value">${this.stages[this.currentStage].name}</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">Version:</span>
-                            <span class="info-value">${project?.metadata?.version || '1.0.0'}</span>
-                        </div>
-                    </div>
-                    
-                    <div class="overview-card quick-actions-card">
-                        <h4><i class="fas fa-bolt"></i> Quick Actions</h4>
-                        <div class="quick-actions-grid">
-                            <button onclick="DevelopModule.openInCursor()">
-                                <i class="fas fa-magic"></i> Open in Cursor
-                            </button>
-                            <button onclick="DevelopModule.openInVSCode()">
-                                <i class="fas fa-code"></i> Open in VS Code
-                            </button>
-                            <button onclick="DevelopModule.gitStatus()">
-                                <i class="fab fa-git-alt"></i> Git Status
-                            </button>
-                            <button onclick="DevelopModule.runTests()">
-                                <i class="fas fa-vial"></i> Run Tests
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="overview-card stats-card">
-                        <h4><i class="fas fa-chart-pie"></i> Progress Stats</h4>
-                        <div class="progress-stats">
-                            <div class="stat-item">
-                                <div class="stat-value">${Math.round((this.currentStage / this.stages.length) * 100)}%</div>
-                                <div class="stat-label">Workflow Progress</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value">0</div>
-                                <div class="stat-label">Open Tasks</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value">0</div>
-                                <div class="stat-label">Comments</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="overview-card recent-activity-card">
-                        <h4><i class="fas fa-clock"></i> Recent Activity</h4>
-                        <div class="activity-list">
-                            <div class="activity-item">
-                                <i class="fas fa-code-branch"></i>
-                                <span>No recent activity</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    },
 
     /**
      * Render Phases tab
      */
-    renderPhasesTab() {
-        return `
-            <div class="tab-content phases-tab">
-                <div class="phases-header">
-                    <h4>Development Phases</h4>
-                    <button class="btn btn-primary btn-sm" onclick="DevelopModule.addPhase()">
-                        <i class="fas fa-plus"></i> Add Phase
-                    </button>
-                </div>
-                <div class="phases-list" id="phases-list">
-                    <div class="phase-item">
-                        <div class="phase-number">1</div>
-                        <div class="phase-content">
-                            <div class="phase-name">Initial Setup</div>
-                            <div class="phase-description">Set up project structure and dependencies</div>
-                        </div>
-                        <div class="phase-status completed">
-                            <i class="fas fa-check"></i>
-                        </div>
-                    </div>
-                    <div class="phase-item">
-                        <div class="phase-number">2</div>
-                        <div class="phase-content">
-                            <div class="phase-name">Core Development</div>
-                            <div class="phase-description">Implement main features</div>
-                        </div>
-                        <div class="phase-status in-progress">
-                            <i class="fas fa-spinner fa-spin"></i>
-                        </div>
-                    </div>
-                    <div class="phase-item">
-                        <div class="phase-number">3</div>
-                        <div class="phase-content">
-                            <div class="phase-name">Testing & QA</div>
-                            <div class="phase-description">Test all functionality</div>
-                        </div>
-                        <div class="phase-status pending">
-                            <i class="fas fa-clock"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    },
 
     /**
      * Render Tasks tab
      */
-    renderTasksTab() {
-        return `
-            <div class="tab-content tasks-tab">
-                <div class="tasks-header">
-                    <h4>Tasks</h4>
-                    <div class="tasks-actions">
-                        <button class="btn btn-secondary btn-sm" onclick="DevelopModule.loadTasks()">
-                            <i class="fas fa-sync"></i> Reload
-                        </button>
-                        <button class="btn btn-primary btn-sm" onclick="DevelopModule.addTask()">
-                            <i class="fas fa-plus"></i> Add Task
-                        </button>
-                    </div>
-                </div>
-                <div class="tasks-list" id="tasks-list">
-                    <div class="task-item priority-high">
-                        <input type="checkbox" class="task-checkbox">
-                        <div class="task-content">
-                            <div class="task-name">Implement user authentication</div>
-                            <div class="task-meta">
-                                <span class="task-priority high">High</span>
-                                <span class="task-assignee"><i class="fas fa-user"></i> Developer</span>
-                            </div>
-                        </div>
-                        <div class="task-actions">
-                            <button title="Edit"><i class="fas fa-edit"></i></button>
-                            <button title="Delete"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </div>
-                    <div class="task-item priority-medium">
-                        <input type="checkbox" class="task-checkbox">
-                        <div class="task-content">
-                            <div class="task-name">Create API documentation</div>
-                            <div class="task-meta">
-                                <span class="task-priority medium">Medium</span>
-                                <span class="task-assignee"><i class="fas fa-user"></i> Developer</span>
-                            </div>
-                        </div>
-                        <div class="task-actions">
-                            <button title="Edit"><i class="fas fa-edit"></i></button>
-                            <button title="Delete"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    },
 
     /**
      * Render Guides tab
      */
-    renderGuidesTab() {
-        return `
-            <div class="tab-content guides-tab">
-                <div class="guides-header">
-                    <h4>Development Guides</h4>
-                    <button class="btn btn-primary btn-sm" onclick="DevelopModule.generateGuide()">
-                        <i class="fas fa-magic"></i> Generate Guide
-                    </button>
-                </div>
-                <div class="guides-list" id="guides-list">
-                    <div class="guide-item">
-                        <div class="guide-icon"><i class="fas fa-book"></i></div>
-                        <div class="guide-content">
-                            <div class="guide-title">Getting Started</div>
-                            <div class="guide-description">Quick start guide for new developers</div>
-                        </div>
-                        <button class="btn btn-link" onclick="DevelopModule.viewGuide('getting-started')">
-                            View <i class="fas fa-arrow-right"></i>
-                        </button>
-                    </div>
-                    <div class="guide-item">
-                        <div class="guide-icon"><i class="fas fa-cogs"></i></div>
-                        <div class="guide-content">
-                            <div class="guide-title">Configuration</div>
-                            <div class="guide-description">How to configure the system</div>
-                        </div>
-                        <button class="btn btn-link" onclick="DevelopModule.viewGuide('configuration')">
-                            View <i class="fas fa-arrow-right"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    },
 
     /**
      * Render Attachments tab
      */
-    renderAttachmentsTab() {
-        return `
-            <div class="tab-content attachments-tab">
-                <div class="attachments-header">
-                    <h4>Attachments</h4>
-                    <button class="btn btn-primary btn-sm" onclick="DevelopModule.uploadAttachment()">
-                        <i class="fas fa-upload"></i> Upload
-                    </button>
-                </div>
-                <div class="attachments-grid" id="attachments-grid">
-                    <div class="attachment-item">
-                        <div class="attachment-icon"><i class="fas fa-file-pdf"></i></div>
-                        <div class="attachment-name">specification.pdf</div>
-                        <div class="attachment-size">2.4 MB</div>
-                    </div>
-                    <div class="attachment-item">
-                        <div class="attachment-icon"><i class="fas fa-file-image"></i></div>
-                        <div class="attachment-name">mockup.png</div>
-                        <div class="attachment-size">856 KB</div>
-                    </div>
-                </div>
-            </div>
-        `;
-    },
 
     /**
      * Render Comments tab
      */
-    renderCommentsTab() {
-        return `
-            <div class="tab-content comments-tab">
-                <div class="comments-list" id="comments-list">
-                    <div class="comment-item">
-                        <div class="comment-avatar"><i class="fas fa-user"></i></div>
-                        <div class="comment-content">
-                            <div class="comment-header">
-                                <span class="comment-author">Developer</span>
-                                <span class="comment-date">Today at 10:30</span>
-                            </div>
-                            <div class="comment-text">Started working on the authentication module.</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="comment-input">
-                    <textarea placeholder="Add a comment..." id="new-comment"></textarea>
-                    <button class="btn btn-primary" onclick="DevelopModule.addComment()">
-                        <i class="fas fa-paper-plane"></i> Send
-                    </button>
-                </div>
-            </div>
-        `;
-    },
 
     /**
      * Render History tab
      */
-    renderHistoryTab() {
-        return `
-            <div class="tab-content history-tab">
-                <div class="history-list" id="history-list">
-                    <div class="history-item">
-                        <div class="history-icon"><i class="fas fa-code-branch"></i></div>
-                        <div class="history-content">
-                            <div class="history-action">Git commit: "Initial commit"</div>
-                            <div class="history-meta">Today at 09:00 by Developer</div>
-                        </div>
-                    </div>
-                    <div class="history-item">
-                        <div class="history-icon"><i class="fas fa-plus"></i></div>
-                        <div class="history-content">
-                            <div class="history-action">Project created</div>
-                            <div class="history-meta">Yesterday at 14:30 by Admin</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    },
 
     /**
      * Setup event listeners
      */
-    setupEventListeners() {
-        // Tab click handling is done via onclick in render
-    },
 
     /**
      * Switch tab
      */
-    switchTab(tabId) {
-        this.currentTab = tabId;
-        
-        // Update tab buttons
-        document.querySelectorAll('.develop-tab').forEach(tab => {
-            tab.classList.toggle('active', tab.dataset.tab === tabId);
-        });
-        
-        // Update tab content
-        const contentEl = document.getElementById('develop-tab-content');
-        if (contentEl) {
-            contentEl.innerHTML = this.renderTabContent();
-        }
-    },
 
     /**
      * Set workflow stage
      */
-    setStage(stageIndex) {
-        this.currentStage = stageIndex;
-        
-        // Update stage UI
-        document.querySelectorAll('.stage-step').forEach((step, index) => {
-            step.classList.remove('completed', 'active');
-            if (index < stageIndex) step.classList.add('completed');
-            if (index === stageIndex) step.classList.add('active');
-        });
-        
-        // Update progress display
-        const progress = document.querySelector('.stage-progress');
-        if (progress) {
-            progress.textContent = `Stage ${stageIndex + 1} of ${this.stages.length}`;
-        }
-
-        showNotification(`Stage: ${this.stages[stageIndex].name}`, 'info');
-    },
 
     /**
      * Go to next stage
      */
-    nextStage() {
-        if (this.currentStage < this.stages.length - 1) {
-            this.setStage(this.currentStage + 1);
-        }
-    },
-
-    /**
-     * Go to previous stage
-     */
-    prevStage() {
-        if (this.currentStage > 0) {
-            this.setStage(this.currentStage - 1);
-        }
-    },
-
-    /**
-     * Auto process current stage
-     */
-    autoProcess() {
-        const stage = this.stages[this.currentStage];
-        showNotification(`Auto-processing: ${stage.name}...`, 'info');
-        
-        // TODO: Implement auto-processing logic for each stage
-        setTimeout(() => {
-            showNotification(`${stage.name} completed`, 'success');
-            this.nextStage();
-        }, 2000);
-    },
 
     // Tool actions
     openTerminal() {
         const obj = StateManager.getCurrentObject();
-        if (obj) app.openTool('terminal', obj.id);
+        if (obj) {
+            app.openTool('terminal', obj.id);
+            this.logAction('terminal', 'Opened terminal');
+        }
     },
 
     runAnalysis() {
         const obj = StateManager.getCurrentObject();
-        if (obj) app.openClaudeInProject(obj.id);
+        if (obj) {
+            app.openClaudeInProject(obj.id);
+            this.logAction('analysis', 'Started analysis');
+        }
     },
 
     loadTasks() {
-        showNotification('Loading tasks...', 'info');
-        // TODO: Load tasks from API
+        const obj = StateManager.getCurrentObject();
+        if (obj) {
+            showNotification('Loading tasks...', 'info');
+            this.logAction('tasks', 'Loaded project tasks');
+            // TODO: Load tasks from API
+        }
     },
 
     incrementVersion() {
-        showNotification('Version incremented', 'success');
-        // TODO: Implement version increment
+        const obj = StateManager.getCurrentObject();
+        if (obj) {
+            showNotification('Version incremented', 'success');
+            this.logAction('version', 'Incremented version');
+            // TODO: Implement version increment
+        }
     },
 
     openInCursor() {
@@ -630,6 +381,117 @@ const DevelopModule = {
             showNotification('Comment added', 'success');
             textarea.value = '';
         }
+    },
+
+    /**
+     * Load work history for project
+     */
+    async loadWorkHistory(projectId) {
+        try {
+            const project = await API.getObject(projectId);
+            const metadata = project.metadata || {};
+            const history = metadata.develop_history || [];
+
+            this.displayWorkHistory(history);
+        } catch (error) {
+            console.error('Error loading work history:', error);
+            const container = document.getElementById('develop-history-list');
+            if (container) {
+                container.innerHTML = '<div class="history-error">Error loading history</div>';
+            }
+        }
+    },
+
+    /**
+     * Display work history
+     */
+    displayWorkHistory(history) {
+        const container = document.getElementById('develop-history-list');
+        if (!container) return;
+
+        if (!history || history.length === 0) {
+            container.innerHTML = '<div class="history-empty">No work history yet. Start working to see your actions here.</div>';
+            return;
+        }
+
+        // Sort by timestamp (newest first)
+        const sortedHistory = [...history].sort((a, b) => {
+            const timeA = new Date(a.timestamp || 0);
+            const timeB = new Date(b.timestamp || 0);
+            return timeB - timeA;
+        });
+
+        container.innerHTML = sortedHistory.map(item => {
+            const time = new Date(item.timestamp);
+            const timeStr = time.toLocaleString('cs-CZ', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const iconMap = {
+                'terminal': 'fa-terminal',
+                'analysis': 'fa-search',
+                'tasks': 'fa-list',
+                'test': 'fa-vial',
+                'fix': 'fa-wrench',
+                'docs': 'fa-book',
+                'version': 'fa-plus-circle',
+                'git': 'fa-code-branch',
+                'deploy': 'fa-rocket'
+            };
+
+            const icon = iconMap[item.action] || 'fa-circle';
+
+            return `
+                <div class="history-item">
+                    <div class="history-icon">
+                        <i class="fas ${icon}"></i>
+                    </div>
+                    <div class="history-content">
+                        <div class="history-action">${item.description || item.action}</div>
+                        <div class="history-meta">${timeStr}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+
+    /**
+     * Log an action to work history
+     */
+    async logAction(action, description) {
+        const project = StateManager.getCurrentObject();
+        if (!project) return;
+
+        try {
+            const fullProject = await API.getObject(project.id);
+            const metadata = fullProject.metadata || {};
+
+            if (!metadata.develop_history) {
+                metadata.develop_history = [];
+            }
+
+            metadata.develop_history.push({
+                timestamp: new Date().toISOString(),
+                action: action,
+                description: description
+            });
+
+            // Keep only last 100 entries
+            if (metadata.develop_history.length > 100) {
+                metadata.develop_history = metadata.develop_history.slice(-100);
+            }
+
+            await API.put(`/objects/${project.id}`, { metadata });
+
+            // Update display
+            this.displayWorkHistory(metadata.develop_history);
+        } catch (error) {
+            console.error('Error logging action:', error);
+        }
     }
 };
 
@@ -640,4 +502,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Export for global access
 window.DevelopModule = DevelopModule;
-

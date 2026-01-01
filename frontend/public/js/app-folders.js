@@ -102,6 +102,9 @@ const AppFolders = {
                             ${breadcrumbHTML}
                         </div>
                     </div>
+                    <button class="btn btn-primary" onclick="AppFolders.saveCurrentPathToProject(${object.id}, '${folderPath.replace(/'/g, "\\'")}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; white-space: nowrap; margin-left: 0.5rem;">
+                        <i class="fas fa-save"></i> Uložit cestu
+                    </button>
                     <button class="btn btn-secondary" onclick="app.navigateProjectFolderUp(${object.id})" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; white-space: nowrap;">
                         <i class="fas fa-arrow-up"></i> Nahoru
                     </button>
@@ -169,6 +172,9 @@ const AppFolders = {
                             ${breadcrumbHTML}
                         </div>
                     </div>
+                    <button class="btn btn-primary" onclick="AppFolders.saveCurrentPathToProject(${object.id}, '${folderPath.replace(/'/g, "\\'")}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; white-space: nowrap; margin-left: 0.5rem;">
+                        <i class="fas fa-save"></i> Uložit cestu
+                    </button>
                     <button class="btn btn-secondary" onclick="app.navigateProjectFolderUp(${object.id})" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; white-space: nowrap;">
                         <i class="fas fa-arrow-up"></i> Nahoru
                     </button>
@@ -395,6 +401,37 @@ const AppFolders = {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         Components.showToast(`Soubor ${fileName} stažen`, 'success');
+    },
+
+    /**
+     * Save current folder path to project metadata
+     */
+    async saveCurrentPathToProject(objectId, folderPath) {
+        try {
+            Components.showToast('Ukládám cestu do projektu...', 'info');
+
+            // Get current object to update metadata
+            const object = await API.getObject(objectId);
+            if (!object) {
+                throw new Error('Projekt nenalezen');
+            }
+
+            // Update metadata with folder_path
+            const metadata = object.metadata || {};
+            metadata.folder_path = folderPath;
+
+            // Update object via API
+            await API.put(`/objects/${objectId}`, {
+                metadata: metadata
+            });
+
+            Components.showToast(`Cesta uložena: ${folderPath}`, 'success');
+            // Update state
+            StateManager.setProjectFolder(objectId, folderPath);
+        } catch (error) {
+            console.error('Error saving path to project:', error);
+            Components.showToast(`Chyba: ${error.message || error}`, 'error');
+        }
     }
 };
 

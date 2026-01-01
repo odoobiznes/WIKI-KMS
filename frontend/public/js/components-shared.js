@@ -4,11 +4,11 @@
  */
 
 const SharedComponents = {
-    
+
     /**
      * Unified Project Panel Component
      * Shows list of projects with configurable behavior for each module
-     * 
+     *
      * @param {Object} options - Configuration options
      * @param {boolean} options.collapsed - Start collapsed (for Tasks, Analytics, Clients, Finance)
      * @param {Object} options.passedProject - Pre-selected project from another module
@@ -38,7 +38,7 @@ const SharedComponents = {
                         <i class="fas fa-chevron-${collapsed ? 'down' : 'up'}"></i>
                     </div>
                 </div>
-                
+
                 ${currentProject ? `
                     <div class="current-project-badge">
                         <i class="fas fa-folder-open"></i>
@@ -48,16 +48,16 @@ const SharedComponents = {
                         </button>
                     </div>
                 ` : ''}
-                
+
                 <div class="project-panel-content" style="${collapsed ? 'display: none;' : ''}">
                     <div class="project-search">
-                        <input type="text" 
-                               placeholder="Search projects..." 
+                        <input type="text"
+                               placeholder="Search projects..."
                                oninput="SharedComponents.filterProjects(this.value)"
                                id="project-search-input">
                         <i class="fas fa-search"></i>
                     </div>
-                    
+
                     <div class="project-list" id="project-list">
                         ${projects.length > 0 ? this.renderProjectList(projects, currentProject) : `
                             <div class="no-projects">
@@ -88,7 +88,7 @@ const SharedComponents = {
                     <div class="project-path">${project.file_path || ''}</div>
                 </div>
                 <div class="project-actions">
-                    <button onclick="event.stopPropagation(); SharedComponents.passProject(${project.id})" 
+                    <button onclick="event.stopPropagation(); SharedComponents.passProject(${project.id})"
                             title="Pass to other module">
                         <i class="fas fa-arrow-up"></i>
                     </button>
@@ -104,9 +104,9 @@ const SharedComponents = {
         const panel = document.getElementById('unified-project-panel');
         const content = panel.querySelector('.project-panel-content');
         const icon = panel.querySelector('.project-panel-toggle i');
-        
+
         panel.classList.toggle('collapsed');
-        
+
         if (panel.classList.contains('collapsed')) {
             content.style.display = 'none';
             icon.className = 'fas fa-chevron-down';
@@ -122,7 +122,7 @@ const SharedComponents = {
     filterProjects(searchTerm) {
         const items = document.querySelectorAll('.project-item');
         const term = searchTerm.toLowerCase();
-        
+
         items.forEach(item => {
             const name = item.dataset.projectName || '';
             item.style.display = name.includes(term) ? '' : 'none';
@@ -135,26 +135,26 @@ const SharedComponents = {
     selectProject(projectId) {
         const projects = StateManager.getObjects() || [];
         const project = projects.find(p => p.id === projectId);
-        
+
         if (project) {
             StateManager.setCurrentObject(project);
-            
+
             // Update UI
             document.querySelectorAll('.project-item').forEach(item => {
                 item.classList.toggle('selected', parseInt(item.dataset.projectId) === projectId);
             });
-            
+
             // Update current project badge
             const badge = document.querySelector('.current-project-badge span');
             if (badge) {
                 badge.textContent = project.object_name || project.name;
             }
-            
+
             // Load project data based on current module
             if (typeof app !== 'undefined' && app.loadObject) {
                 app.loadObject(projectId);
             }
-            
+
             // Emit event
             document.dispatchEvent(new CustomEvent('projectSelected', {
                 detail: { project }
@@ -168,9 +168,9 @@ const SharedComponents = {
     passProject(projectId) {
         const projects = StateManager.getObjects() || [];
         const project = projects.find(p => p.id === projectId);
-        
+
         if (!project) return;
-        
+
         // Show module selector modal
         const modalHtml = `
             <div id="pass-project-modal" class="modal" style="display: flex;">
@@ -188,7 +188,7 @@ const SharedComponents = {
                         </p>
                         <div class="module-selector">
                             ${Object.values(ModuleRouter.modules).map(mod => `
-                                <button class="module-select-btn" 
+                                <button class="module-select-btn"
                                         onclick="SharedComponents.executePassProject(${projectId}, '${mod.id}')"
                                         style="--module-color: ${mod.color}">
                                     <i class="fas ${mod.icon}"></i>
@@ -200,7 +200,7 @@ const SharedComponents = {
                 </div>
             </div>
         `;
-        
+
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
@@ -210,11 +210,11 @@ const SharedComponents = {
     executePassProject(projectId, moduleId) {
         const projects = StateManager.getObjects() || [];
         const project = projects.find(p => p.id === projectId);
-        
+
         if (project && typeof ModuleRouter !== 'undefined') {
             ModuleRouter.passProjectTo(moduleId, project);
         }
-        
+
         // Close modal
         const modal = document.getElementById('pass-project-modal');
         if (modal) modal.remove();
@@ -233,7 +233,7 @@ const SharedComponents = {
     /**
      * Unified Toolbar Component
      * Module-specific toolbar with common and custom actions
-     * 
+     *
      * @param {Object} options - Configuration options
      * @param {string} options.moduleId - Current module ID
      * @param {Array} options.customTools - Custom tools for this module
@@ -262,8 +262,8 @@ const SharedComponents = {
             <div class="unified-toolbar" id="unified-toolbar">
                 <div class="toolbar-section common-tools">
                     ${commonTools.map(tool => `
-                        <button class="toolbar-btn" 
-                                onclick="${tool.action}" 
+                        <button class="toolbar-btn"
+                                onclick="${tool.action}"
                                 title="${tool.label}"
                                 ${!currentObject ? 'disabled' : ''}>
                             <i class="fas ${tool.icon}"></i>
@@ -271,13 +271,13 @@ const SharedComponents = {
                         </button>
                     `).join('')}
                 </div>
-                
+
                 ${customTools.length > 0 ? `
                     <div class="toolbar-divider"></div>
                     <div class="toolbar-section module-tools">
                         ${customTools.map(tool => `
-                            <button class="toolbar-btn ${tool.primary ? 'primary' : ''}" 
-                                    onclick="${tool.action}" 
+                            <button class="toolbar-btn ${tool.primary ? 'primary' : ''}"
+                                    onclick="${tool.action}"
                                     title="${tool.label}"
                                     ${tool.requiresProject && !currentObject ? 'disabled' : ''}>
                                 <i class="fas ${tool.icon}"></i>
@@ -286,7 +286,7 @@ const SharedComponents = {
                         `).join('')}
                     </div>
                 ` : ''}
-                
+
                 ${currentObject ? `
                     <div class="toolbar-divider"></div>
                     <div class="toolbar-project-info">
@@ -305,7 +305,7 @@ const SharedComponents = {
     renderHiddenProjectsToggle(isHidden = true) {
         return `
             <div class="hidden-projects-toggle">
-                <button onclick="SharedComponents.toggleHiddenProjects()" 
+                <button onclick="SharedComponents.toggleHiddenProjects()"
                         class="toggle-btn ${isHidden ? '' : 'active'}">
                     <i class="fas fa-${isHidden ? 'eye-slash' : 'eye'}"></i>
                     <span>${isHidden ? 'Show Projects' : 'Hide Projects'}</span>
@@ -322,7 +322,7 @@ const SharedComponents = {
         const toggle = document.querySelector('.hidden-projects-toggle .toggle-btn');
         const icon = toggle.querySelector('i');
         const text = toggle.querySelector('span');
-        
+
         if (panel.classList.contains('collapsed')) {
             panel.classList.remove('collapsed');
             panel.querySelector('.project-panel-content').style.display = '';
@@ -395,7 +395,7 @@ const SharedComponents = {
      */
     init() {
         console.log('🧩 SharedComponents initialized');
-        
+
         // Add styles for shared components
         if (!document.getElementById('shared-components-styles')) {
             const styles = `
@@ -408,7 +408,7 @@ const SharedComponents = {
                         margin-bottom: 1rem;
                         overflow: hidden;
                     }
-                    
+
                     .project-panel-header {
                         display: flex;
                         justify-content: space-between;
@@ -418,11 +418,11 @@ const SharedComponents = {
                         cursor: pointer;
                         border-bottom: 1px solid #e9ecef;
                     }
-                    
+
                     .project-panel-header:hover {
                         background: #e9ecef;
                     }
-                    
+
                     .project-panel-title {
                         display: flex;
                         align-items: center;
@@ -430,13 +430,13 @@ const SharedComponents = {
                         font-weight: 600;
                         color: #2c3e50;
                     }
-                    
+
                     .project-count {
                         color: #7f8c8d;
                         font-weight: normal;
                         font-size: 0.9rem;
                     }
-                    
+
                     .current-project-badge {
                         display: flex;
                         align-items: center;
@@ -446,7 +446,7 @@ const SharedComponents = {
                         border-bottom: 1px solid #b8daff;
                         font-size: 0.9rem;
                     }
-                    
+
                     .current-project-badge button {
                         margin-left: auto;
                         background: none;
@@ -455,13 +455,13 @@ const SharedComponents = {
                         cursor: pointer;
                         padding: 0.25rem;
                     }
-                    
+
                     .project-search {
                         position: relative;
                         padding: 0.75rem;
                         border-bottom: 1px solid #e9ecef;
                     }
-                    
+
                     .project-search input {
                         width: 100%;
                         padding: 0.5rem 0.75rem 0.5rem 2rem;
@@ -469,7 +469,7 @@ const SharedComponents = {
                         border-radius: 4px;
                         font-size: 0.9rem;
                     }
-                    
+
                     .project-search i {
                         position: absolute;
                         left: 1.25rem;
@@ -477,12 +477,12 @@ const SharedComponents = {
                         transform: translateY(-50%);
                         color: #adb5bd;
                     }
-                    
+
                     .project-list {
                         max-height: 300px;
                         overflow-y: auto;
                     }
-                    
+
                     .project-item {
                         display: flex;
                         align-items: center;
@@ -492,25 +492,25 @@ const SharedComponents = {
                         transition: background 0.2s;
                         border-bottom: 1px solid #f0f0f0;
                     }
-                    
+
                     .project-item:hover {
                         background: #f8f9fa;
                     }
-                    
+
                     .project-item.selected {
                         background: #e8f4fd;
                         border-left: 3px solid #3498db;
                     }
-                    
+
                     .project-icon {
                         color: #f39c12;
                     }
-                    
+
                     .project-info {
                         flex: 1;
                         min-width: 0;
                     }
-                    
+
                     .project-name {
                         font-weight: 500;
                         color: #2c3e50;
@@ -518,7 +518,7 @@ const SharedComponents = {
                         overflow: hidden;
                         text-overflow: ellipsis;
                     }
-                    
+
                     .project-path {
                         font-size: 0.75rem;
                         color: #7f8c8d;
@@ -526,7 +526,7 @@ const SharedComponents = {
                         overflow: hidden;
                         text-overflow: ellipsis;
                     }
-                    
+
                     .project-actions button {
                         background: none;
                         border: none;
@@ -535,29 +535,29 @@ const SharedComponents = {
                         padding: 0.25rem;
                         transition: color 0.2s;
                     }
-                    
+
                     .project-actions button:hover {
                         color: #3498db;
                     }
-                    
+
                     .no-projects {
                         text-align: center;
                         padding: 2rem;
                         color: #7f8c8d;
                     }
-                    
+
                     .no-projects i {
                         font-size: 2rem;
                         margin-bottom: 0.5rem;
                     }
-                    
+
                     /* Module Selector */
                     .module-selector {
                         display: grid;
                         grid-template-columns: repeat(2, 1fr);
                         gap: 0.5rem;
                     }
-                    
+
                     .module-select-btn {
                         display: flex;
                         align-items: center;
@@ -569,13 +569,13 @@ const SharedComponents = {
                         cursor: pointer;
                         transition: all 0.2s;
                     }
-                    
+
                     .module-select-btn:hover {
                         background: var(--module-color);
                         border-color: var(--module-color);
                         color: white;
                     }
-                    
+
                     /* Unified Toolbar */
                     .unified-toolbar {
                         display: flex;
@@ -586,19 +586,19 @@ const SharedComponents = {
                         border-bottom: 1px solid #e9ecef;
                         flex-wrap: wrap;
                     }
-                    
+
                     .toolbar-section {
                         display: flex;
                         gap: 0.25rem;
                     }
-                    
+
                     .toolbar-divider {
                         width: 1px;
                         height: 24px;
                         background: #ddd;
                         margin: 0 0.5rem;
                     }
-                    
+
                     .toolbar-btn {
                         display: flex;
                         align-items: center;
@@ -611,28 +611,28 @@ const SharedComponents = {
                         font-size: 0.8rem;
                         transition: all 0.2s;
                     }
-                    
+
                     .toolbar-btn:hover:not(:disabled) {
                         background: #3498db;
                         border-color: #3498db;
                         color: white;
                     }
-                    
+
                     .toolbar-btn:disabled {
                         opacity: 0.5;
                         cursor: not-allowed;
                     }
-                    
+
                     .toolbar-btn.primary {
                         background: #3498db;
                         border-color: #3498db;
                         color: white;
                     }
-                    
+
                     .toolbar-btn.primary:hover {
                         background: #2980b9;
                     }
-                    
+
                     .toolbar-project-info {
                         display: flex;
                         align-items: center;
@@ -644,12 +644,12 @@ const SharedComponents = {
                         color: #0c5460;
                         margin-left: auto;
                     }
-                    
+
                     /* Hidden Projects Toggle */
                     .hidden-projects-toggle {
                         margin-bottom: 1rem;
                     }
-                    
+
                     .hidden-projects-toggle .toggle-btn {
                         display: flex;
                         align-items: center;
@@ -661,14 +661,14 @@ const SharedComponents = {
                         cursor: pointer;
                         transition: all 0.2s;
                     }
-                    
+
                     .hidden-projects-toggle .toggle-btn:hover,
                     .hidden-projects-toggle .toggle-btn.active {
                         background: #3498db;
                         border-color: #3498db;
                         color: white;
                     }
-                    
+
                     /* Stage Workflow */
                     .stage-workflow {
                         display: flex;
@@ -679,7 +679,7 @@ const SharedComponents = {
                         border-radius: 8px;
                         margin-bottom: 1rem;
                     }
-                    
+
                     .stage-item {
                         display: flex;
                         flex-direction: column;
@@ -689,7 +689,7 @@ const SharedComponents = {
                         cursor: pointer;
                         min-width: 80px;
                     }
-                    
+
                     .stage-icon {
                         width: 40px;
                         height: 40px;
@@ -701,30 +701,30 @@ const SharedComponents = {
                         color: #6c757d;
                         transition: all 0.2s;
                     }
-                    
+
                     .stage-item.completed .stage-icon {
                         background: #27ae60;
                         color: white;
                     }
-                    
+
                     .stage-item.active .stage-icon {
                         background: #3498db;
                         color: white;
                         box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.2);
                     }
-                    
+
                     .stage-name {
                         font-size: 0.75rem;
                         color: #6c757d;
                         text-align: center;
                     }
-                    
+
                     .stage-item.active .stage-name,
                     .stage-item.completed .stage-name {
                         color: #2c3e50;
                         font-weight: 500;
                     }
-                    
+
                     .stage-connector {
                         position: absolute;
                         right: -20px;
@@ -733,16 +733,16 @@ const SharedComponents = {
                         height: 2px;
                         background: #e9ecef;
                     }
-                    
+
                     .stage-item.completed .stage-connector {
                         background: #27ae60;
                     }
-                    
+
                     @media (max-width: 768px) {
                         .toolbar-label {
                             display: none;
                         }
-                        
+
                         .module-selector {
                             grid-template-columns: 1fr;
                         }
@@ -761,4 +761,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Export for global access
 window.SharedComponents = SharedComponents;
-

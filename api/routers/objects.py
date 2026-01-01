@@ -189,6 +189,140 @@ def delete_object(object_id: int):
             conn.rollback()
             raise HTTPException(status_code=400, detail=str(e))
 
+@router.put("/{object_id}/spec")
+def update_object_spec(object_id: int, spec_data: dict):
+    """Update object specification"""
+    specification = spec_data.get('specification', '')
+
+    with get_db_cursor() as (cur, conn):
+        # Check if object exists
+        cur.execute("SELECT id, metadata FROM objects WHERE id = %s", (object_id,))
+        obj = cur.fetchone()
+
+        if not obj:
+            raise HTTPException(status_code=404, detail="Object not found")
+
+        # Get existing metadata or create new
+        metadata = obj.get('metadata') or {}
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+
+        # Update specification in metadata
+        metadata['specification'] = specification
+
+        # Update object
+        cur.execute("""
+            UPDATE objects
+            SET metadata = %s, updated_at = NOW()
+            WHERE id = %s
+            RETURNING *
+        """, (json.dumps(metadata), object_id))
+
+        conn.commit()
+        updated_obj = cur.fetchone()
+
+        return {"id": updated_obj['id'], "specification": specification, "message": "Specification updated"}
+
+
+@router.get("/{object_id}/spec")
+def get_object_spec(object_id: int):
+    """Get object specification"""
+    with get_db_cursor() as (cur, conn):
+        cur.execute("SELECT metadata FROM objects WHERE id = %s", (object_id,))
+        obj = cur.fetchone()
+
+        if not obj:
+            raise HTTPException(status_code=404, detail="Object not found")
+
+        metadata = obj.get('metadata') or {}
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+
+        specification = metadata.get('specification', '')
+        return {"id": object_id, "specification": specification}
+
+
+@router.put("/{object_id}/phases")
+def update_object_phases(object_id: int, phases_data: dict):
+    """Update object phases and tasks"""
+    phases = phases_data.get('phases', [])
+    tasks = phases_data.get('tasks', [])
+
+    with get_db_cursor() as (cur, conn):
+        # Check if object exists
+        cur.execute("SELECT id, metadata, file_path FROM objects WHERE id = %s", (object_id,))
+        obj = cur.fetchone()
+
+        if not obj:
+            raise HTTPException(status_code=404, detail="Object not found")
+
+        # Get existing metadata or create new
+        metadata = obj.get('metadata') or {}
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+
+        # Update phases and tasks in metadata
+        metadata['phases'] = phases
+        metadata['tasks'] = tasks
+        metadata['phases_updated_at'] = json.dumps({"timestamp": str(__import__('datetime').datetime.now())})
+
+        # Update object in database
+        cur.execute("""
+            UPDATE objects
+            SET metadata = %s, updated_at = NOW()
+            WHERE id = %s
+            RETURNING *
+        """, (json.dumps(metadata), object_id))
+
+        conn.commit()
+        updated_obj = cur.fetchone()
+
+        # Save to disk if file_path exists
+        if obj.get('file_path'):
+            import os
+            from pathlib import Path
+            base_path = Path('/opt/kms') / obj['file_path']
+            phases_file = base_path / 'phases.json'
+            tasks_file = base_path / 'tasks.json'
+
+            try:
+                os.makedirs(base_path, exist_ok=True)
+                with open(phases_file, 'w', encoding='utf-8') as f:
+                    json.dump(phases, f, indent=2, ensure_ascii=False)
+                with open(tasks_file, 'w', encoding='utf-8') as f:
+                    json.dump(tasks, f, indent=2, ensure_ascii=False)
+            except Exception as e:
+                # Log error but don't fail the request
+                import logging
+                logging.error(f"Error saving phases/tasks to disk: {e}")
+
+        return {
+            "id": updated_obj['id'],
+            "phases": phases,
+            "tasks": tasks,
+            "message": "Phases and tasks updated"
+        }
+
+
+@router.get("/{object_id}/phases")
+def get_object_phases(object_id: int):
+    """Get object phases and tasks"""
+    with get_db_cursor() as (cur, conn):
+        cur.execute("SELECT metadata FROM objects WHERE id = %s", (object_id,))
+        obj = cur.fetchone()
+
+        if not obj:
+            raise HTTPException(status_code=404, detail="Object not found")
+
+        metadata = obj.get('metadata') or {}
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+
+        phases = metadata.get('phases', [])
+        tasks = metadata.get('tasks', [])
+        return {"id": object_id, "phases": phases, "tasks": tasks}
+
+
 @router.get("/{object_id}/documents")
 def get_object_documents(object_id: int):
     """Get all documents for an object"""

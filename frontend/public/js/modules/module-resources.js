@@ -17,8 +17,21 @@
  * - Auto-discovery of available resources
  */
 
+// Helper function for notifications (reuse if already defined in another module)
+if (typeof showNotification === 'undefined') {
+    window.showNotification = function(message, type = 'info') {
+        if (typeof Components !== 'undefined' && Components.showToast) {
+            Components.showToast(message, type);
+        } else if (typeof API !== 'undefined' && API.showNotification) {
+            API.showNotification(message, type);
+        } else {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+    };
+}
+
 const ResourcesModule = {
-    projectsHidden: true,
+    statsHidden: true, // Statistics section hidden by default
     resources: [],
     resourceTypes: [],
     conflicts: [],
@@ -31,9 +44,16 @@ const ResourcesModule = {
     init() {
         console.log('🔧 ResourcesModule initialized');
 
-        document.addEventListener('moduleChanged', (e) => {
+        document.addEventListener('moduleChanged', async (e) => {
             if (e.detail.currentModule === 'resources') {
-                this.loadData();
+                await this.loadData();
+                this.render();
+            }
+        });
+
+        document.addEventListener('projectSelected', async () => {
+            if (ModuleRouter.currentModule === 'resources') {
+                await this.loadData();
                 this.render();
             }
         });
@@ -42,21 +62,71 @@ const ResourcesModule = {
     async loadData() {
         try {
             // Load all resources
-            const resourcesResponse = await API.get('/api/resources');
+            const resourcesResponse = await API.get('/resources');
+            let allResources = [];
             if (resourcesResponse) {
-                this.resources = Array.isArray(resourcesResponse) ? resourcesResponse : [];
+                allResources = Array.isArray(resourcesResponse) ? resourcesResponse : [];
             }
 
-            // Load summary
-            const summaryResponse = await API.get('/api/resources/summary');
+            // Filter by selected project
+            const currentProject = StateManager.getCurrentObject();
+            if (currentProject) {
+                const projectName = currentProject.object_name || currentProject.name || '';
+                const projectId = currentProject.id;
+
+                this.resources = allResources.filter(resource => {
+                    // Check owner_service matches project name
+                    if (resource.owner_service && projectName &&
+                        resource.owner_service.toLowerCase().includes(projectName.toLowerCase())) {
+                        return true;
+                    }
+                    // Check metadata for project reference
+                    if (resource.metadata) {
+                        const metadata = typeof resource.metadata === 'string'
+                            ? JSON.parse(resource.metadata)
+                            : resource.metadata;
+                        if (metadata.project_id === projectId ||
+                            metadata.object_id === projectId ||
+                            (metadata.project_name && projectName &&
+                             metadata.project_name.toLowerCase().includes(projectName.toLowerCase()))) {
+                            return true;
+                        }
+                    }
+                    // Check assigned_to matches project name
+                    if (resource.assigned_to && projectName &&
+                        resource.assigned_to.toLowerCase().includes(projectName.toLowerCase())) {
+                        return true;
+                    }
+                    return false;
+                });
+            } else {
+                this.resources = allResources;
+            }
+
+            // Load summary (filtered)
+            const summaryResponse = await API.get('/resources/summary');
             if (summaryResponse) {
                 this.summary = Array.isArray(summaryResponse) ? summaryResponse : [];
             }
 
-            // Load conflicts
-            const conflictsResponse = await API.get('/api/resources/conflicts');
+            // Load conflicts (filtered)
+            const conflictsResponse = await API.get('/resources/conflicts');
+            let allConflicts = [];
             if (conflictsResponse) {
-                this.conflicts = Array.isArray(conflictsResponse) ? conflictsResponse : [];
+                allConflicts = Array.isArray(conflictsResponse) ? conflictsResponse : [];
+            }
+
+            // Filter conflicts by project
+            if (currentProject) {
+                const projectName = currentProject.object_name || currentProject.name || '';
+                this.conflicts = allConflicts.filter(conflict => {
+                    const resource1 = conflict.resource_name_1 || conflict.resource_name || '';
+                    const resource2 = conflict.resource_name_2 || '';
+                    return (resource1.toLowerCase().includes(projectName.toLowerCase()) ||
+                            resource2.toLowerCase().includes(projectName.toLowerCase()));
+                });
+            } else {
+                this.conflicts = allConflicts;
             }
 
             // Extract unique resource types
@@ -77,7 +147,6 @@ const ResourcesModule = {
 
         mainView.innerHTML = `
             <div class="resources-module-container">
-                ${this.renderProjectToggle()}
                 ${this.renderDashboard()}
             </div>
         `;
@@ -85,28 +154,21 @@ const ResourcesModule = {
         this.attachEventListeners();
     },
 
-    renderProjectToggle() {
-        return `
-            <div class="resources-project-section ${this.projectsHidden ? 'collapsed' : ''}">
-                <div class="project-toggle-header" onclick="ResourcesModule.toggleProjects()">
-                    <div class="project-toggle-info">
-                        <i class="fas fa-${this.projectsHidden ? 'eye-slash' : 'eye'}"></i>
-                        <span>${this.projectsHidden ? 'Show Projects' : 'Hide Projects'}</span>
-                    </div>
-                    <i class="fas fa-chevron-${this.projectsHidden ? 'down' : 'up'}"></i>
-                </div>
-            </div>
-        `;
-    },
-
     renderDashboard() {
         const stats = this.calculateStats();
 
         return `
             <div class="resources-dashboard">
-                <div class="resources-header">
-                    <h2><i class="fas fa-server"></i> System Resources</h2>
-                    <div class="resources-actions">
+                <div class="module-header-row">
+                    <div class="module-header-left">
+                        <h2><i class="fas fa-server"></i> System Resources</h2>
+                        <button class="btn-icon-toggle ${this.statsHidden ? '' : 'active'}"
+                                onclick="ResourcesModule.toggleStats()"
+                                title="${this.statsHidden ? 'Show Statistics' : 'Hide Statistics'}">
+                            <i class="fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}"></i>
+                        </button>
+                    </div>
+                    <div class="module-header-actions">
                         <button class="btn btn-primary" onclick="ResourcesModule.showAllocateModal()">
                             <i class="fas fa-plus"></i> Allocate Resource
                         </button>
@@ -119,9 +181,10 @@ const ResourcesModule = {
                     </div>
                 </div>
 
-                ${this.renderStats(stats)}
-
-                ${this.conflicts.length > 0 ? this.renderConflicts() : ''}
+                <div class="module-stats-section ${this.statsHidden ? 'hidden' : ''}">
+                    ${this.renderStats(stats)}
+                    ${this.conflicts.length > 0 ? this.renderConflicts() : ''}
+                </div>
 
                 ${this.renderFilters()}
                 ${this.renderResourcesList()}
@@ -477,7 +540,7 @@ const ResourcesModule = {
         }
 
         try {
-            const result = await API.post('/api/resources/check-availability', {
+            const result = await API.post('/resources/check-availability', {
                 resource_type: type,
                 resource_value: value,
                 environment: environment
@@ -522,7 +585,7 @@ const ResourcesModule = {
         }
 
         try {
-            await API.post('/api/resources', data);
+            await API.post('/resources', data);
             showNotification('Resource allocated successfully', 'success');
             closeModal();
             this.loadData();
@@ -586,7 +649,7 @@ const ResourcesModule = {
         const environment = document.getElementById('port-environment').value;
 
         try {
-            const result = await API.post('/api/resources/find-available-ports', {
+            const result = await API.post('/resources/find-available-ports', {
                 start_port: startPort,
                 end_port: endPort,
                 count: count,
@@ -706,7 +769,7 @@ const ResourcesModule = {
 
     async viewHistory(resourceId) {
         try {
-            const history = await API.get(`/api/resources/${resourceId}/history`);
+            const history = await API.get(`/resources/${resourceId}/history`);
 
             const modalHtml = `
                 <div class="modal-header">
@@ -807,7 +870,7 @@ const ResourcesModule = {
         };
 
         try {
-            await API.put(`/api/resources/${resourceId}`, data);
+            await API.put(`/resources/${resourceId}`, data);
             showNotification('Resource updated successfully', 'success');
             closeModal();
             this.loadData();
@@ -826,7 +889,7 @@ const ResourcesModule = {
         }
 
         try {
-            await API.delete(`/api/resources/${resourceId}`);
+            await API.delete(`/resources/${resourceId}`);
             showNotification('Resource released successfully', 'success');
             this.loadData();
             this.render();
@@ -841,9 +904,19 @@ const ResourcesModule = {
         showNotification('Resources refreshed', 'success');
     },
 
-    toggleProjects() {
-        this.projectsHidden = !this.projectsHidden;
-        this.render();
+    toggleStats() {
+        this.statsHidden = !this.statsHidden;
+        // Update UI without full re-render
+        const statsSection = document.querySelector('.module-stats-section');
+        const toggleBtn = document.querySelector('.btn-icon-toggle');
+        if (statsSection) {
+            statsSection.classList.toggle('hidden', this.statsHidden);
+        }
+        if (toggleBtn) {
+            toggleBtn.classList.toggle('active', !this.statsHidden);
+            toggleBtn.querySelector('i').className = `fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}`;
+            toggleBtn.title = this.statsHidden ? 'Show Statistics' : 'Hide Statistics';
+        }
     },
 
     copyToClipboard(text) {

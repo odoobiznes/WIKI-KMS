@@ -1,7 +1,7 @@
 /**
  * KMS Module - FINANCE
  * Financial Operations module
- * 
+ *
  * Features:
  * - Invoice creation and management
  * - Payment tracking
@@ -11,15 +11,22 @@
  */
 
 const FinanceModule = {
-    projectsHidden: true,
+    statsHidden: true, // Statistics section hidden by default
     invoices: [],
     payments: [],
 
     init() {
         console.log('💰 FinanceModule initialized');
-        
+
         document.addEventListener('moduleChanged', (e) => {
             if (e.detail.currentModule === 'finance') {
+                this.loadData();
+                this.render();
+            }
+        });
+
+        document.addEventListener('projectSelected', () => {
+            if (ModuleRouter.currentModule === 'finance') {
                 this.loadData();
                 this.render();
             }
@@ -28,84 +35,107 @@ const FinanceModule = {
 
     loadData() {
         // Demo data
-        this.invoices = [
-            { id: 1, number: 'INV-2025-001', client: 'ABC Company', amount: 25000, status: 'paid', date: '2025-12-15' },
-            { id: 2, number: 'INV-2025-002', client: 'XYZ Corp', amount: 18500, status: 'pending', date: '2025-12-28' },
-            { id: 3, number: 'INV-2025-003', client: 'Tech Solutions', amount: 32000, status: 'overdue', date: '2025-12-01' }
+        const allInvoices = [
+            { id: 1, number: 'INV-2025-001', client: 'ABC Company', amount: 25000, status: 'paid', date: '2025-12-15', project_id: 1, project_name: 'tests' },
+            { id: 2, number: 'INV-2025-002', client: 'XYZ Corp', amount: 18500, status: 'pending', date: '2025-12-28', project_id: 2, project_name: 'other-project' },
+            { id: 3, number: 'INV-2025-003', client: 'Tech Solutions', amount: 32000, status: 'overdue', date: '2025-12-01', project_id: 1, project_name: 'tests' }
         ];
+
+        // Filter by selected project
+        const currentProject = StateManager.getCurrentObject();
+        if (currentProject) {
+            const projectName = currentProject.object_name || currentProject.name || '';
+            const projectId = currentProject.id;
+
+            this.invoices = allInvoices.filter(invoice => {
+                return invoice.project_id === projectId ||
+                       (invoice.project_name && projectName &&
+                        invoice.project_name.toLowerCase().includes(projectName.toLowerCase()));
+            });
+        } else {
+            this.invoices = allInvoices;
+        }
     },
 
     render() {
         const mainView = document.getElementById('main-view');
         if (!mainView) return;
 
-        // Note: Toolbar is rendered by ModuleRouter.renderModuleHeader()
         mainView.innerHTML = `
             <div class="finance-module-container">
-                ${this.renderProjectToggle()}
-                ${this.renderDashboard()}
+                ${this.renderModuleHeader()}
+                ${this.renderInvoicesTable()}
             </div>
         `;
     },
 
-    renderProjectToggle() {
-        return `
-            <div class="finance-project-section ${this.projectsHidden ? 'collapsed' : ''}">
-                <div class="project-toggle-header" onclick="FinanceModule.toggleProjects()">
-                    <div class="project-toggle-info">
-                        <i class="fas fa-${this.projectsHidden ? 'eye-slash' : 'eye'}"></i>
-                        <span>${this.projectsHidden ? 'Show Projects' : 'Hide Projects'}</span>
-                    </div>
-                    <i class="fas fa-chevron-${this.projectsHidden ? 'down' : 'up'}"></i>
-                </div>
-            </div>
-        `;
-    },
-
-    renderDashboard() {
+    renderModuleHeader() {
         const totalPending = this.invoices.filter(i => i.status === 'pending').reduce((sum, i) => sum + i.amount, 0);
         const totalOverdue = this.invoices.filter(i => i.status === 'overdue').reduce((sum, i) => sum + i.amount, 0);
         const totalPaid = this.invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.amount, 0);
 
         return `
-            <div class="finance-dashboard">
-                <div class="finance-stats">
-                    <div class="finance-stat-card">
-                        <div class="stat-icon paid"><i class="fas fa-check-circle"></i></div>
+            <div class="module-header-row">
+                <div class="module-header-left">
+                    <h2><i class="fas fa-money-bill-wave"></i> Finance</h2>
+                    <button class="btn-icon-toggle ${this.statsHidden ? '' : 'active'}"
+                            onclick="FinanceModule.toggleStats()"
+                            title="${this.statsHidden ? 'Show Statistics' : 'Hide Statistics'}">
+                        <i class="fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}"></i>
+                    </button>
+                </div>
+                <div class="module-header-actions">
+                    <button class="btn btn-primary" onclick="FinanceModule.showCreateInvoiceModal()">
+                        <i class="fas fa-plus"></i> Create Invoice
+                    </button>
+                    <button class="btn btn-secondary" onclick="FinanceModule.loadData(); FinanceModule.render();">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="module-stats-section ${this.statsHidden ? 'hidden' : ''}">
+                <div class="resources-stats">
+                    <div class="stat-card stat-primary" style="--module-color: #27ae60">
+                        <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
                         <div class="stat-content">
-                            <div class="stat-value">${totalPaid.toLocaleString()} CZK</div>
-                            <div class="stat-label">Paid</div>
+                            <h3>${totalPaid.toLocaleString()} CZK</h3>
+                            <p>Paid</p>
                         </div>
                     </div>
-                    <div class="finance-stat-card">
-                        <div class="stat-icon pending"><i class="fas fa-clock"></i></div>
+                    <div class="stat-card stat-info" style="--module-color: #f39c12">
+                        <div class="stat-icon"><i class="fas fa-clock"></i></div>
                         <div class="stat-content">
-                            <div class="stat-value">${totalPending.toLocaleString()} CZK</div>
-                            <div class="stat-label">Pending</div>
+                            <h3>${totalPending.toLocaleString()} CZK</h3>
+                            <p>Pending</p>
                         </div>
                     </div>
-                    <div class="finance-stat-card">
-                        <div class="stat-icon overdue"><i class="fas fa-exclamation-circle"></i></div>
+                    <div class="stat-card stat-danger" style="--module-color: #e74c3c">
+                        <div class="stat-icon"><i class="fas fa-exclamation-circle"></i></div>
                         <div class="stat-content">
-                            <div class="stat-value">${totalOverdue.toLocaleString()} CZK</div>
-                            <div class="stat-label">Overdue</div>
+                            <h3>${totalOverdue.toLocaleString()} CZK</h3>
+                            <p>Overdue</p>
                         </div>
                     </div>
-                    <div class="finance-stat-card">
-                        <div class="stat-icon total"><i class="fas fa-coins"></i></div>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+                        <div class="stat-icon"><i class="fas fa-coins"></i></div>
                         <div class="stat-content">
-                            <div class="stat-value">${(totalPaid + totalPending + totalOverdue).toLocaleString()} CZK</div>
-                            <div class="stat-label">Total</div>
+                            <h3>${(totalPaid + totalPending + totalOverdue).toLocaleString()} CZK</h3>
+                            <p>Total</p>
                         </div>
                     </div>
                 </div>
-                
-                <div class="finance-content">
-                    <div class="invoices-section">
-                        <div class="section-header">
-                            <h4><i class="fas fa-file-invoice"></i> Recent Invoices</h4>
-                        </div>
-                        <table class="finance-table">
+            </div>
+        `;
+    },
+
+    renderInvoicesTable() {
+        return `
+            <div class="finance-content">
+                <div class="invoices-section">
+                    <div class="section-header">
+                        <h4><i class="fas fa-file-invoice"></i> Recent Invoices</h4>
+                    </div>
+                    <table class="finance-table">
                             <thead>
                                 <tr>
                                     <th>Invoice #</th>
@@ -143,13 +173,21 @@ const FinanceModule = {
                         </table>
                     </div>
                 </div>
-            </div>
         `;
     },
 
-    toggleProjects() {
-        this.projectsHidden = !this.projectsHidden;
-        this.render();
+    toggleStats() {
+        this.statsHidden = !this.statsHidden;
+        const statsSection = document.querySelector('.module-stats-section');
+        const toggleBtn = document.querySelector('.btn-icon-toggle');
+        if (statsSection) {
+            statsSection.classList.toggle('hidden', this.statsHidden);
+        }
+        if (toggleBtn) {
+            toggleBtn.classList.toggle('active', !this.statsHidden);
+            toggleBtn.querySelector('i').className = `fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}`;
+            toggleBtn.title = this.statsHidden ? 'Show Statistics' : 'Hide Statistics';
+        }
     },
 
     showCreateInvoiceModal() {
@@ -198,7 +236,7 @@ const FinanceModule = {
     createInvoice() {
         const client = document.getElementById('invoice-client').value;
         const amount = parseFloat(document.getElementById('invoice-amount').value);
-        
+
         if (!client || !amount) {
             showNotification('Please fill required fields', 'warning');
             return;
@@ -263,4 +301,3 @@ const FinanceModule = {
 
 document.addEventListener('DOMContentLoaded', () => FinanceModule.init());
 window.FinanceModule = FinanceModule;
-

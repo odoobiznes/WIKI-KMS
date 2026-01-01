@@ -13,8 +13,21 @@
  * - Audit logging
  */
 
+// Helper function for notifications (define globally if not already defined)
+if (typeof window.showNotification === 'undefined') {
+    window.showNotification = function(message, type = 'info') {
+        if (typeof Components !== 'undefined' && Components.showToast) {
+            Components.showToast(message, type);
+        } else if (typeof API !== 'undefined' && API.showNotification) {
+            API.showNotification(message, type);
+        } else {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+    };
+}
+
 const LoginsModule = {
-    projectsHidden: true,
+    statsHidden: true, // Statistics section hidden by default
     credentials: [],
     categories: [],
     currentFilter: 'all',
@@ -23,9 +36,16 @@ const LoginsModule = {
     init() {
         console.log('🔐 LoginsModule initialized');
 
-        document.addEventListener('moduleChanged', (e) => {
+        document.addEventListener('moduleChanged', async (e) => {
             if (e.detail.currentModule === 'logins') {
-                this.loadData();
+                await this.loadData();
+                this.render();
+            }
+        });
+
+        document.addEventListener('projectSelected', async () => {
+            if (ModuleRouter.currentModule === 'logins') {
+                await this.loadData();
                 this.render();
             }
         });
@@ -34,15 +54,62 @@ const LoginsModule = {
     async loadData() {
         try {
             // Load categories
-            const categoriesResponse = await API.get('/api/logins/categories');
+            const categoriesResponse = await API.request('/logins/categories');
             if (categoriesResponse && categoriesResponse.categories) {
                 this.categories = categoriesResponse.categories;
+            } else if (Array.isArray(categoriesResponse)) {
+                this.categories = categoriesResponse;
             }
 
             // Load credentials
-            const credentialsResponse = await API.get('/api/logins/credentials');
+            const credentialsResponse = await API.request('/logins/credentials');
+            let allCredentials = [];
             if (credentialsResponse) {
-                this.credentials = Array.isArray(credentialsResponse) ? credentialsResponse : [];
+                allCredentials = Array.isArray(credentialsResponse) ? credentialsResponse : [];
+            }
+
+            // Filter by selected project
+            const currentProject = StateManager.getCurrentObject();
+            if (currentProject) {
+                const projectName = currentProject.object_name || currentProject.name || '';
+                const projectId = currentProject.id;
+
+                this.credentials = allCredentials.filter(credential => {
+                    // Check tags for project reference
+                    if (credential.tags && Array.isArray(credential.tags)) {
+                        const hasProjectTag = credential.tags.some(tag =>
+                            tag.toLowerCase().includes(projectName.toLowerCase()) ||
+                            tag === `project-${projectId}` ||
+                            tag === `object-${projectId}`
+                        );
+                        if (hasProjectTag) return true;
+                    }
+                    // Check description for project name
+                    if (credential.description && projectName &&
+                        credential.description.toLowerCase().includes(projectName.toLowerCase())) {
+                        return true;
+                    }
+                    // Check key_name for project name
+                    if (credential.key_name && projectName &&
+                        credential.key_name.toLowerCase().includes(projectName.toLowerCase())) {
+                        return true;
+                    }
+                    // Check connection_info metadata
+                    if (credential.connection_info) {
+                        const connInfo = typeof credential.connection_info === 'string'
+                            ? JSON.parse(credential.connection_info)
+                            : credential.connection_info;
+                        if (connInfo.project_id === projectId ||
+                            connInfo.object_id === projectId ||
+                            (connInfo.project_name && projectName &&
+                             connInfo.project_name.toLowerCase().includes(projectName.toLowerCase()))) {
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+            } else {
+                this.credentials = allCredentials;
             }
         } catch (error) {
             console.error('Error loading logins data:', error);
@@ -58,22 +125,7 @@ const LoginsModule = {
 
         mainView.innerHTML = `
             <div class="logins-module-container">
-                ${this.renderProjectToggle()}
                 ${this.renderDashboard()}
-            </div>
-        `;
-    },
-
-    renderProjectToggle() {
-        return `
-            <div class="logins-project-section ${this.projectsHidden ? 'collapsed' : ''}">
-                <div class="project-toggle-header" onclick="LoginsModule.toggleProjects()">
-                    <div class="project-toggle-info">
-                        <i class="fas fa-${this.projectsHidden ? 'eye-slash' : 'eye'}"></i>
-                        <span>${this.projectsHidden ? 'Show Projects' : 'Hide Projects'}</span>
-                    </div>
-                    <i class="fas fa-chevron-${this.projectsHidden ? 'down' : 'up'}"></i>
-                </div>
             </div>
         `;
     },
@@ -83,7 +135,30 @@ const LoginsModule = {
 
         return `
             <div class="logins-dashboard">
-                ${this.renderStats(stats)}
+                <div class="module-header-row">
+                    <div class="module-header-left">
+                        <h2><i class="fas fa-key"></i> Credentials</h2>
+                        <button class="btn-icon-toggle ${this.statsHidden ? '' : 'active'}"
+                                onclick="LoginsModule.toggleStats()"
+                                title="${this.statsHidden ? 'Show Statistics' : 'Hide Statistics'}">
+                            <i class="fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}"></i>
+                        </button>
+                    </div>
+                    <div class="module-header-actions">
+                        <button class="btn btn-primary" onclick="LoginsModule.showAddCredentialModal()">
+                            <i class="fas fa-plus"></i> New Credential
+                        </button>
+                        <button class="btn btn-secondary" onclick="LoginsModule.testAllCredentials()">
+                            <i class="fas fa-check-double"></i> Test All
+                        </button>
+                        <button class="btn btn-secondary" onclick="LoginsModule.refresh()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="module-stats-section ${this.statsHidden ? 'hidden' : ''}">
+                    ${this.renderStats(stats)}
+                </div>
                 ${this.renderFilters()}
                 ${this.renderCredentialsList()}
             </div>
@@ -306,9 +381,18 @@ const LoginsModule = {
         return filtered;
     },
 
-    toggleProjects() {
-        this.projectsHidden = !this.projectsHidden;
-        this.render();
+    toggleStats() {
+        this.statsHidden = !this.statsHidden;
+        const statsSection = document.querySelector('.module-stats-section');
+        const toggleBtn = document.querySelector('.btn-icon-toggle');
+        if (statsSection) {
+            statsSection.classList.toggle('hidden', this.statsHidden);
+        }
+        if (toggleBtn) {
+            toggleBtn.classList.toggle('active', !this.statsHidden);
+            toggleBtn.querySelector('i').className = `fas fa-${this.statsHidden ? 'eye-slash' : 'eye'}`;
+            toggleBtn.title = this.statsHidden ? 'Show Statistics' : 'Hide Statistics';
+        }
     },
 
     handleSearch(term) {
@@ -441,7 +525,7 @@ const LoginsModule = {
         }
 
         try {
-            const response = await API.post('/api/logins/credentials', {
+            const response = await API.post('/logins/credentials', {
                 key_name: name,
                 category: category,
                 environment: environment,
@@ -469,7 +553,7 @@ const LoginsModule = {
         if (!credential) return;
 
         try {
-            const response = await API.post(`/api/logins/credentials/${credentialId}/decrypt`);
+            const response = await API.post(`/logins/credentials/${credentialId}/decrypt`);
 
             if (response && response.plain_value) {
                 const modalHtml = `
@@ -529,7 +613,7 @@ const LoginsModule = {
 
     async copyToClipboard(credentialId) {
         try {
-            const response = await API.post(`/api/logins/credentials/${credentialId}/decrypt`);
+            const response = await API.post(`/logins/credentials/${credentialId}/decrypt`);
 
             if (response && response.plain_value) {
                 await navigator.clipboard.writeText(response.plain_value);
@@ -553,7 +637,7 @@ const LoginsModule = {
         showNotification(`Testing ${credential.key_name}...`, 'info');
 
         try {
-            const response = await API.post(`/api/logins/credentials/${credentialId}/test`);
+            const response = await API.post(`/logins/credentials/${credentialId}/test`);
 
             if (response) {
                 if (response.success) {
@@ -577,7 +661,7 @@ const LoginsModule = {
         }
 
         try {
-            await API.delete(`/api/logins/credentials/${credentialId}`);
+            await API.delete(`/logins/credentials/${credentialId}`);
 
             await this.loadData();
             this.render();
