@@ -1673,53 +1673,56 @@ Make it practical and actionable.`;
             return;
         }
 
+        // Get project specification
+        const specField = document.getElementById('project-spec');
+        const specification = specField?.value || '';
+
         showNotification('Generating tasks...', 'info');
 
         try {
             const enabledProviders = this.aiProviders.filter(p => p.enabled);
             const provider = enabledProviders.find(p => p.id === this.selectedAIProvider) || enabledProviders[0];
 
-            if (!provider) {
-                throw new Error('No AI provider configured');
-            }
+            let tasks = [];
 
-            // Validate API key
-            if (!provider.apiKey || provider.apiKey.trim() === '') {
-                throw new Error('API klíč není nastaven. Nastavte ho v Settings → AI Providers.');
-            }
+            // Try AI generation first
+            if (provider && provider.apiKey && provider.apiKey.trim() !== '') {
+                const prompt = `You are a project manager. Based on the project specification and phases, generate detailed tasks.
 
-            const prompt = `Based on these project phases, generate detailed tasks for each phase:
+PROJECT SPECIFICATION:
+${specification}
 
-${JSON.stringify(phases, null, 2)}
+PROJECT PHASES:
+${phases.map((p, i) => `Phase ${i+1}: ${p.name}\nDescription: ${p.description || 'N/A'}`).join('\n\n')}
 
-Please provide tasks in JSON format:
+Generate 3-5 specific, actionable tasks for EACH phase. Return JSON:
 {
   "tasks": [
-    {
-      "id": 1,
-      "phase_id": 1,
-      "name": "Task Name",
-      "description": "Detailed description",
-      "priority": "high",
-      "estimated_hours": 8,
-      "status": "pending"
-    }
+    {"id": 1, "phase_id": 0, "name": "Task name", "description": "What to do", "priority": "high|medium|low", "estimated_hours": 4}
   ]
 }
 
-Make tasks specific and actionable.`;
+phase_id is 0-indexed (Phase 1 = phase_id 0).`;
 
-            const response = await this.callAIProvider(provider, prompt, project);
-
-            // Try to parse JSON from response
-            let tasks = [];
-            try {
-                const jsonMatch = response.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    tasks = JSON.parse(jsonMatch[0]).tasks || [];
+                try {
+                    const response = await this.callAIProvider(provider, prompt, project);
+                    const jsonMatch = response.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        tasks = JSON.parse(jsonMatch[0]).tasks || [];
+                    }
+                } catch (aiError) {
+                    console.warn('AI generation failed, using local fallback:', aiError.message);
                 }
-            } catch (e) {
-                showNotification('Could not parse tasks from response', 'warning');
+            }
+
+            // Fallback: Generate tasks locally from specification and phase names
+            if (tasks.length === 0) {
+                tasks = this.generateTasksLocally(phases, specification);
+                showNotification('Generated tasks locally (no AI configured)', 'info');
+            }
+
+            if (tasks.length === 0) {
+                showNotification('Could not generate tasks. Add them manually.', 'warning');
                 return;
             }
 
@@ -1738,6 +1741,62 @@ Make tasks specific and actionable.`;
             console.error('Generate tasks error:', error);
             showNotification(`Error: ${error.message}`, 'error');
         }
+    },
+
+    // Local task generation fallback (no AI needed)
+    generateTasksLocally(phases, specification) {
+        const tasks = [];
+        let taskId = 1;
+
+        // Default task templates based on common phase patterns
+        const taskTemplates = {
+            'discovery': ['Analýza požadavků', 'Definice scope', 'Návrh wireframes', 'Review s klientem'],
+            'design': ['UI/UX návrh', 'Prototyp', 'Design review', 'Schválení designu'],
+            'development': ['Setup prostředí', 'Implementace core', 'API integrace', 'Unit testy'],
+            'testing': ['Testovací plán', 'Funkční testy', 'UAT', 'Bug fixing'],
+            'deploy': ['Staging deploy', 'Production deploy', 'Monitoring', 'Dokumentace'],
+            'infrastructure': ['Setup serveru', 'Database setup', 'CI/CD pipeline', 'Security audit'],
+            'admin': ['Admin panel', 'User management', 'Role permissions', 'Audit log'],
+            'client': ['Landing page', 'Registrace', 'User dashboard', 'Notifikace']
+        };
+
+        phases.forEach((phase, phaseIdx) => {
+            const phaseName = (phase.name || '').toLowerCase();
+            
+            // Find matching template
+            let templateTasks = null;
+            for (const [key, template] of Object.entries(taskTemplates)) {
+                if (phaseName.includes(key)) {
+                    templateTasks = template;
+                    break;
+                }
+            }
+
+            // Default tasks if no template matches
+            if (!templateTasks) {
+                templateTasks = [
+                    `Analýza: ${phase.name}`,
+                    `Implementace: ${phase.name}`,
+                    `Testování: ${phase.name}`,
+                    `Review: ${phase.name}`
+                ];
+            }
+
+            // Create tasks for this phase
+            templateTasks.forEach((taskName, idx) => {
+                tasks.push({
+                    id: taskId++,
+                    phase_id: phaseIdx,
+                    name: taskName,
+                    description: `Úkol pro fázi "${phase.name}"`,
+                    priority: idx === 0 ? 'high' : (idx === 1 ? 'medium' : 'low'),
+                    estimated_hours: 4 + (idx * 2),
+                    status: 'pending'
+                });
+            });
+        });
+
+        return tasks;
     },
 
     async savePhasesAndTasks(phases, tasks) {
