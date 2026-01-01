@@ -203,33 +203,28 @@ Components.subcategoryForm = async function(categoryId, subcategory = null) {
         <div class="form-header" style="padding: 0.75rem 1rem; margin-bottom: 0.5rem;">
             <div class="form-header-title" style="display: flex; align-items: center; gap: 0.5rem;">
                 <select id="edit-type-select-subcategory" onchange="app.handleEditTypeChangeSubcategory('${editType}', ${subcategory ? subcategory.id : 'null'}, ${isEmpty})" style="font-size: 0.95rem; font-weight: 600; padding: 0.25rem 0.5rem; border: 1px solid #ddd; border-radius: 4px; background: white;">
-                    <option value="subcategory" ${editType === 'subcategory' ? 'selected' : ''}>Edit Subcategory</option>
+                    <option value="subcategory" ${editType === 'subcategory' ? 'selected' : ''}>${isEdit ? 'Edit' : 'New'} Subcategory</option>
                     <option value="project" ${editType === 'project' ? 'selected' : ''}>Projects</option>
                 </select>
+                <div class="icon-picker-inline" style="display: flex; align-items: center; gap: 0.25rem; margin-left: 0.5rem;">
+                    <div class="icon-preview" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: #e3f2fd; border-radius: 4px; cursor: pointer;" onclick="Components.showIconPicker('subcategory')" title="Change icon">
+                        <i class="fas ${iconValue}" id="subcategory-icon-preview" style="color: #3498db; font-size: 0.9rem;"></i>
+                    </div>
+                    <button type="button" onclick="Components.showIconPicker('subcategory')" style="background: none; border: none; padding: 0.15rem; cursor: pointer; color: #666;" title="Change icon">
+                        <i class="fas fa-pen" style="font-size: 0.7rem;"></i>
+                    </button>
+                    <input type="hidden" name="icon" id="subcategory-icon-input" value="${iconValue}">
+                </div>
             </div>
             <button onclick="app.closeModal()" class="close-btn">&times;</button>
         </div>
         <form id="subcategory-form" onsubmit="app.submitSubcategoryForm(event, ${categoryId}, ${subcategory ? subcategory.id : 'null'}, '${editType}')" style="padding: 0 1rem 1rem;">
-            <div class="form-group" style="margin-bottom: 0.75rem;">
-                <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Slug *</label>
-                <input type="text" name="slug" required pattern="[a-z0-9-]+" placeholder="my-subcategory"
-                    value="${subcategory ? subcategory.slug : ''}" style="padding: 0.5rem; font-size: 0.9rem;">
-            </div>
+            <input type="hidden" name="slug" id="subcategory-slug-input" value="${subcategory ? subcategory.slug : ''}">
             <div class="form-group" style="margin-bottom: 0.75rem;">
                 <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Name *</label>
-                <input type="text" name="name" required placeholder="My Subcategory"
-                    value="${subcategory ? subcategory.name : ''}" style="padding: 0.5rem; font-size: 0.9rem;">
-            </div>
-            <div class="form-group" style="margin-bottom: 0.75rem;">
-                <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Icon</label>
-                <div class="icon-picker" style="display: flex; align-items: center; gap: 0.5rem;">
-                    <div class="icon-preview" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #e3f2fd; border-radius: 4px;">
-                        <i class="fas ${iconValue}" id="subcategory-icon-preview" style="color: #3498db;"></i>
-                    </div>
-                    <input type="text" name="icon" id="subcategory-icon-input" placeholder="fa-folder" value="${iconValue}"
-                        oninput="document.getElementById('subcategory-icon-preview').className = 'fas ' + (this.value || 'fa-folder')"
-                        style="flex: 1; padding: 0.5rem; font-size: 0.9rem;">
-                </div>
+                <input type="text" name="name" id="subcategory-name-input" required placeholder="My Subcategory"
+                    value="${subcategory ? subcategory.name : ''}" style="padding: 0.5rem; font-size: 0.9rem;"
+                    oninput="if(!${isEdit}) document.getElementById('subcategory-slug-input').value = this.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')">
             </div>
             <div class="form-group" id="folder-path-group-subcategory" style="display: ${editType === 'project' ? 'block' : 'none'}; margin-bottom: 0.75rem;">
                 <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Cesta k Složce projektu *</label>
