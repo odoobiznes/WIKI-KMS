@@ -1786,36 +1786,149 @@ Make tasks specific and actionable.`;
                     const phaseTasks = tasks.filter(t => (t.phase_id === phase.id) || (t.phase_id === phaseIdx));
                     return `
                         <div class="phase-card" data-phase-id="${phaseId}">
-                            <div class="phase-header">
-                                <span class="phase-badge">Phase ${phase.order || phase.id || phaseIdx + 1}</span>
-                                <h5 class="phase-name-editable" contenteditable="true" data-phase-id="${phaseId}">${phase.name || 'Unnamed Phase'}</h5>
+                            <div class="phase-header" onclick="IdeasModule.togglePhase(${phaseId})">
+                                <i class="fas fa-chevron-down phase-toggle"></i>
+                                <span class="phase-badge">Phase ${phase.order || phaseIdx + 1}</span>
+                                <h5>${this.escapeHtml(phase.name || 'Unnamed Phase')}</h5>
+                                <span style="color: #888; font-size: 0.75rem; margin-left: auto;">${phaseTasks.length} tasks</span>
                             </div>
-                            <div class="phase-description-editable" contenteditable="true" data-phase-id="${phaseId}">${phase.description || ''}</div>
-                            ${phaseTasks.length > 0 ? `
-                                <div class="phase-tasks">
-                                    <h6>Tasks:</h6>
-                                    <ul>
-                                        ${phaseTasks.map((task, taskIdx) => {
-                                            const taskId = task.id || taskIdx;
-                                            return `
-                                            <li class="task-item priority-${task.priority || 'medium'}" data-task-id="${taskId}">
-                                                <strong class="task-name-editable" contenteditable="true" data-task-id="${taskId}">${task.name || 'Task'}</strong>
-                                                ${task.description ? `<div class="task-description-editable" contenteditable="true" data-task-id="${taskId}">${task.description}</div>` : '<div class="task-description-editable" contenteditable="true" data-task-id="' + taskId + '" style="min-height: 20px; color: #999;">Click to add description...</div>'}
-                                                <span class="task-meta">${task.estimated_hours ? `${task.estimated_hours}h` : ''} | Priority: ${task.priority || 'medium'}</span>
-                                            </li>
-                                        `;
-                                        }).join('')}
-                                    </ul>
-                                </div>
-                            ` : ''}
+                            ${phase.description ? `<div class="phase-description">${this.escapeHtml(phase.description)}</div>` : ''}
+                            <div class="phase-tasks">
+                                <ul>
+                                    ${phaseTasks.map((task, taskIdx) => {
+                                        const taskId = task.id || taskIdx;
+                                        const priority = task.priority || 'medium';
+                                        return `
+                                        <li class="phase-task-item" data-task-id="${taskId}" onclick="IdeasModule.openTaskInTasks('${taskId}')">
+                                            <span class="task-priority-dot ${priority}"></span>
+                                            <span class="task-name">${this.escapeHtml(task.name || task.title || 'Task')}</span>
+                                            <div class="task-actions" onclick="event.stopPropagation()">
+                                                <button onclick="IdeasModule.editTask('${taskId}')" title="Edit"><i class="fas fa-edit"></i></button>
+                                                <button onclick="IdeasModule.sendTaskToTasks('${taskId}')" title="Send to Tasks"><i class="fas fa-arrow-right"></i></button>
+                                            </div>
+                                        </li>
+                                    `;
+                                    }).join('')}
+                                    ${phaseTasks.length === 0 ? '<li class="phase-task-item" style="color: #999; font-style: italic;">No tasks in this phase</li>' : ''}
+                                </ul>
+                            </div>
                         </div>
                     `;
                 }).join('')}
             </div>
+            <div style="margin-top: 0.5rem; text-align: right;">
+                <button class="btn btn-sm btn-primary" onclick="IdeasModule.syncAllToTasks()">
+                    <i class="fas fa-sync"></i> Sync All to TASKS
+                </button>
+            </div>
         `;
+    },
 
-        // Add event listeners for inline editing
-        this.setupInlineEditing();
+    togglePhase(phaseId) {
+        const card = document.querySelector(`.phase-card[data-phase-id="${phaseId}"]`);
+        if (card) {
+            card.classList.toggle('collapsed');
+        }
+    },
+
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+
+    async openTaskInTasks(taskId) {
+        // Navigate to TASKS module and highlight the task
+        window.location.hash = '#tasks';
+        setTimeout(() => {
+            if (typeof TasksModule !== 'undefined') {
+                TasksModule.highlightTask(taskId);
+            }
+        }, 300);
+    },
+
+    async editTask(taskId) {
+        // Open task edit modal
+        const project = StateManager.getCurrentObject();
+        if (!project) return;
+
+        try {
+            const fullProject = await API.getObject(project.id);
+            const tasks = fullProject.metadata?.generated_tasks || [];
+            const task = tasks.find(t => String(t.id) === String(taskId));
+            if (task) {
+                const newName = prompt('Task name:', task.name || task.title || '');
+                if (newName !== null) {
+                    task.name = newName;
+                    task.title = newName;
+                    await this.savePhasesAndTasks(fullProject.metadata?.generated_phases || [], tasks);
+                    this.loadPhasesAndTasks();
+                }
+            }
+        } catch (error) {
+            console.error('Edit task error:', error);
+        }
+    },
+
+    async sendTaskToTasks(taskId) {
+        const project = StateManager.getCurrentObject();
+        if (!project) return;
+
+        try {
+            const fullProject = await API.getObject(project.id);
+            const tasks = fullProject.metadata?.generated_tasks || [];
+            const task = tasks.find(t => String(t.id) === String(taskId));
+            
+            if (task && typeof TasksModule !== 'undefined') {
+                TasksModule.addExternalTask({
+                    ...task,
+                    title: task.name || task.title,
+                    project_id: project.id,
+                    project_name: project.object_name || project.name,
+                    source: 'ideas'
+                });
+                showNotification('Task sent to TASKS module', 'success');
+            }
+        } catch (error) {
+            console.error('Send task error:', error);
+            showNotification('Error sending task', 'error');
+        }
+    },
+
+    async syncAllToTasks() {
+        const project = StateManager.getCurrentObject();
+        if (!project) {
+            showNotification('No project selected', 'warning');
+            return;
+        }
+
+        try {
+            const fullProject = await API.getObject(project.id);
+            const phases = fullProject.metadata?.generated_phases || [];
+            const tasks = fullProject.metadata?.generated_tasks || [];
+            
+            if (typeof TasksModule !== 'undefined') {
+                let count = 0;
+                tasks.forEach(task => {
+                    const phase = phases.find(p => p.id === task.phase_id);
+                    TasksModule.addExternalTask({
+                        ...task,
+                        title: task.name || task.title,
+                        project_id: project.id,
+                        project_name: project.object_name || project.name,
+                        phase_name: phase?.name || `Phase ${task.phase_id + 1}`,
+                        source: 'ideas',
+                        skipNotification: true
+                    });
+                    count++;
+                });
+                showNotification(`${count} tasks synced to TASKS module`, 'success');
+            }
+        } catch (error) {
+            console.error('Sync all tasks error:', error);
+            showNotification('Error syncing tasks', 'error');
+        }
     },
 
     setupInlineEditing() {

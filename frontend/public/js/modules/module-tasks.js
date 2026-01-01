@@ -707,6 +707,63 @@ const TasksModule = {
     },
 
     /**
+     * Add external task (from IDEAS module)
+     */
+    addExternalTask(taskData) {
+        // Check if task already exists
+        const existingTask = this.tasks.find(t => 
+            t.source === 'ideas' && 
+            t.source_id === taskData.id &&
+            t.project_id === taskData.project_id
+        );
+
+        if (existingTask) {
+            // Update existing task
+            Object.assign(existingTask, {
+                title: taskData.title || taskData.name,
+                description: taskData.description,
+                priority: taskData.priority || 'medium',
+                phase_name: taskData.phase_name
+            });
+        } else {
+            // Create new task
+            const newTask = {
+                id: `ideas-${taskData.project_id}-${taskData.id}`,
+                title: taskData.title || taskData.name,
+                description: taskData.description || '',
+                status: 'todo',
+                priority: taskData.priority || 'medium',
+                assignee: null,
+                dueDate: null,
+                project_id: taskData.project_id,
+                project_name: taskData.project_name,
+                phase_id: taskData.phase_id,
+                phase_name: taskData.phase_name,
+                source: 'ideas',
+                source_id: taskData.id
+            };
+            this.tasks.push(newTask);
+        }
+
+        this.updateTaskBoard();
+        
+        if (!taskData.skipNotification) {
+            showNotification(`Task "${taskData.title}" added`, 'success');
+        }
+    },
+
+    /**
+     * Highlight task (when navigated from IDEAS)
+     */
+    highlightTask(taskId) {
+        const taskEl = document.querySelector(`.task-card[data-task-id="${taskId}"]`);
+        if (taskEl) {
+            taskEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            taskEl.style.animation = 'highlight-pulse 1s ease-in-out 2';
+        }
+    },
+
+    /**
      * Escape HTML to prevent XSS
      */
     escapeHtml(text) {
