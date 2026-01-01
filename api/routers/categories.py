@@ -4,6 +4,7 @@ Categories API Router
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
 import json
+import os
 
 import sys
 from pathlib import Path
@@ -11,6 +12,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import Category, CategoryCreate, CategoryUpdate, MessageResponse
 from database import get_db_cursor
+
+# Base path for category folders
+CATEGORY_BASE_PATH = "/opt/kms"
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
@@ -59,13 +63,21 @@ def create_category(category: CategoryCreate):
     """Create a new category"""
     with get_db_cursor() as (cur, conn):
         try:
+            # Auto-generate slug from name if not provided
+            slug = category.slug
+            if not slug:
+                slug = category.name.lower().replace(' ', '-')
+                # Remove special characters
+                slug = ''.join(c for c in slug if c.isalnum() or c == '-')
+                slug = '-'.join(filter(None, slug.split('-')))  # Remove multiple dashes
+            
             cur.execute("""
                 INSERT INTO categories
                 (slug, name, type, description, icon, color, sort_order, is_active, metadata)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING *
             """, (
-                category.slug,
+                slug,
                 category.name,
                 category.type,
                 category.description,
@@ -78,6 +90,14 @@ def create_category(category: CategoryCreate):
 
             new_category = cur.fetchone()
             conn.commit()
+            
+            # Create folder for the category
+            try:
+                folder_path = os.path.join(CATEGORY_BASE_PATH, slug)
+                os.makedirs(folder_path, exist_ok=True)
+                print(f"Created category folder: {folder_path}")
+            except Exception as folder_error:
+                print(f"Warning: Could not create folder for category: {folder_error}")
 
             return new_category
 
