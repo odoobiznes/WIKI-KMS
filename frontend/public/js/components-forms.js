@@ -254,60 +254,69 @@ Components.objectForm = async function(categoryId, object = null, subcategoryId 
     const isEdit = object !== null;
     // Load subcategories for this category
     let subcategories = [];
+    let category = null;
+    let selectedSubcategory = null;
+    
     try {
         subcategories = await API.getSubcategories(categoryId);
+        category = await API.getCategory(categoryId);
     } catch (error) {
-        console.error('Error loading subcategories:', error);
+        console.error('Error loading data:', error);
     }
 
     // Use provided subcategoryId or from object
     const selectedSubcategoryId = subcategoryId || (object && object.subcategory_id) || null;
+    
+    // Find selected subcategory for path
+    if (selectedSubcategoryId && subcategories.length > 0) {
+        selectedSubcategory = subcategories.find(s => s.id === selectedSubcategoryId);
+    }
 
-    const subcategoryOptions = subcategories.length > 0
-        ? subcategories.map(sub => `<option value="${sub.id}" ${selectedSubcategoryId === sub.id ? 'selected' : ''}>${sub.name}</option>`).join('')
-        : '<option value="">No subcategories available</option>';
-
-    const currentIcon = object ? (object.icon || object.metadata?.icon || 'fa-folder') : 'fa-folder';
+    const currentIcon = object ? (object.icon || object.metadata?.icon || 'fa-project-diagram') : 'fa-project-diagram';
     const iconValue = currentIcon.startsWith('fa-') ? currentIcon : `fa-${currentIcon}`;
+    
+    // Build base path for auto-fill
+    const categorySlug = category ? category.slug : 'category';
+    const subcategorySlug = selectedSubcategory ? selectedSubcategory.slug : 'subcategory';
+    const basePath = `/opt/kms/${categorySlug}/${subcategorySlug}`;
+    const existingPath = object && object.metadata && object.metadata.folder_path ? object.metadata.folder_path : '';
 
     return `
         <div class="form-header" style="padding: 0.75rem 1rem; margin-bottom: 0.5rem;">
-            <h3 style="font-size: 1rem; margin: 0;"><i class="fas fa-${isEdit ? 'edit' : 'folder-plus'}"></i> ${isEdit ? 'Edit' : 'Create'} Project</h3>
+            <div class="form-header-title" style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1rem; font-weight: 600;"><i class="fas fa-${isEdit ? 'edit' : 'folder-plus'}"></i> ${isEdit ? 'Edit' : 'Create'} Project</span>
+                <div class="icon-picker-inline" style="display: flex; align-items: center; gap: 0.25rem; margin-left: 0.5rem;">
+                    <div class="icon-preview" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: #e3f2fd; border-radius: 4px; cursor: pointer;" onclick="Components.showIconPicker('object')" title="Change icon">
+                        <i class="fas ${iconValue}" id="object-icon-preview" style="color: #3498db; font-size: 0.9rem;"></i>
+                    </div>
+                    <button type="button" onclick="Components.showIconPicker('object')" style="background: none; border: none; padding: 0.15rem; cursor: pointer; color: #666;" title="Change icon">
+                        <i class="fas fa-pen" style="font-size: 0.7rem;"></i>
+                    </button>
+                    <input type="hidden" name="icon" id="object-icon-input" value="${iconValue}">
+                </div>
+            </div>
             <button onclick="app.closeModal()" class="close-btn">&times;</button>
         </div>
         <form id="object-form" onsubmit="app.submitObjectForm(event, ${categoryId}, ${object ? object.id : 'null'})" style="padding: 0 1rem 1rem;">
             ${selectedSubcategoryId ? `<input type="hidden" name="subcategory_id" value="${selectedSubcategoryId}">` : ''}
+            <input type="hidden" name="slug" id="object-slug-input" value="${object ? (object.slug || '') : ''}">
+            <input type="hidden" name="status" id="object-status-input" value="${isEdit ? (object.status || 'active') : 'active'}">
             <div class="form-group" style="margin-bottom: 0.75rem;">
                 <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Name *</label>
-                <input type="text" name="name" required placeholder="Project Name"
-                    value="${object ? (object.object_name || object.name || '') : ''}" style="padding: 0.5rem; font-size: 0.9rem;">
-            </div>
-            <div class="form-group" style="margin-bottom: 0.75rem;">
-                <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Slug</label>
-                <input type="text" name="slug" pattern="[a-z0-9-]+" placeholder="Auto-generated from name"
-                    value="${object ? (object.slug || '') : ''}" style="padding: 0.5rem; font-size: 0.9rem;">
+                <input type="text" name="name" id="object-name-input" required placeholder="Project Name"
+                    value="${object ? (object.object_name || object.name || '') : ''}" style="padding: 0.5rem; font-size: 0.9rem;"
+                    oninput="Components.updateObjectPath('${basePath}', ${isEdit})">
             </div>
             <div class="form-group" id="folder-path-group-object" style="margin-bottom: 0.75rem;">
-                <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Cesta k Složce projektu *</label>
+                <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Cesta k Složce projektu</label>
                 <div style="display: flex; gap: 0.5rem;">
-                    <input type="text" name="folder_path" id="folder-path-input" placeholder="/opt/kms/category-name/subcategory-name/object-name"
-                        value="${object && object.metadata && object.metadata.folder_path ? object.metadata.folder_path : ''}"
-                        required style="flex: 1; padding: 0.5rem; font-size: 0.9rem;">
+                    <input type="text" name="folder_path" id="folder-path-input" placeholder="${basePath}/project-name"
+                        value="${existingPath}"
+                        style="flex: 1; padding: 0.5rem; font-size: 0.9rem; background: #f5f5f5;" readonly>
                     <button type="button" onclick="app.openFolderPicker('folder-path-input')"
                         class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.9rem; white-space: nowrap;">
-                        <i class="fas fa-folder-open"></i> Vybrat cestu
+                        <i class="fas fa-folder-open"></i>
                     </button>
-                </div>
-            </div>
-            <div class="form-group" style="margin-bottom: 0.75rem;">
-                <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Icon</label>
-                <div class="icon-picker" style="display: flex; align-items: center; gap: 0.5rem;">
-                    <div class="icon-preview" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #e3f2fd; border-radius: 4px;">
-                        <i class="fas ${iconValue}" id="object-icon-preview" style="color: #3498db;"></i>
-                    </div>
-                    <input type="text" name="icon" id="object-icon-input" placeholder="fa-folder" value="${iconValue}"
-                        oninput="document.getElementById('object-icon-preview').className = 'fas ' + (this.value || 'fa-folder')"
-                        style="flex: 1; padding: 0.5rem; font-size: 0.9rem;">
                 </div>
             </div>
             <div class="form-group" style="margin-bottom: 0.75rem;">
@@ -315,10 +324,12 @@ Components.objectForm = async function(categoryId, object = null, subcategoryId 
                 <textarea name="description" placeholder="Project description..." rows="2"
                     style="padding: 0.5rem; font-size: 0.9rem; resize: vertical;">${object ? (object.description || '') : ''}</textarea>
             </div>
+            ${isEdit ? `
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
                 <div class="form-group" style="margin-bottom: 0;">
                     <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Status</label>
-                    <select name="status" style="padding: 0.5rem; font-size: 0.9rem; width: 100%;">
+                    <select name="status" id="object-status-select" style="padding: 0.5rem; font-size: 0.9rem; width: 100%;"
+                        onchange="document.getElementById('object-status-input').value = this.value">
                         <option value="draft" ${object && object.status === 'draft' ? 'selected' : ''}>Draft</option>
                         <option value="active" ${!object || object.status === 'active' ? 'selected' : ''}>Active</option>
                         <option value="archived" ${object && object.status === 'archived' ? 'selected' : ''}>Archived</option>
@@ -330,12 +341,36 @@ Components.objectForm = async function(categoryId, object = null, subcategoryId 
                         value="${object ? (object.author || '') : ''}" style="padding: 0.5rem; font-size: 0.9rem; width: 100%;">
                 </div>
             </div>
+            ` : `
+            <div class="form-group" style="margin-bottom: 0.75rem;">
+                <label style="font-size: 0.85rem; margin-bottom: 0.25rem;">Author</label>
+                <input type="text" name="author" placeholder="Your name"
+                    value="" style="padding: 0.5rem; font-size: 0.9rem;">
+            </div>
+            `}
             <div class="form-actions" style="display: flex; gap: 0.5rem; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #e0e0e0;">
                 <button type="button" onclick="app.closeModal()" class="btn btn-secondary" style="flex: 1; padding: 0.5rem; font-size: 0.9rem;">Cancel</button>
                 <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.5rem; font-size: 0.9rem;">${isEdit ? 'Update' : 'Create'}</button>
             </div>
         </form>
     `;
+};
+
+// Helper function to update object path based on name
+Components.updateObjectPath = function(basePath, isEdit) {
+    const nameInput = document.getElementById('object-name-input');
+    const slugInput = document.getElementById('object-slug-input');
+    const pathInput = document.getElementById('folder-path-input');
+    
+    if (nameInput && pathInput) {
+        const name = nameInput.value;
+        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        
+        if (!isEdit) {
+            slugInput.value = slug;
+            pathInput.value = basePath + '/' + slug;
+        }
+    }
 };
 
 // Icon picker modal
