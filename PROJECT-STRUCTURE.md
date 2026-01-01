@@ -1,400 +1,330 @@
 # KMS Tools - Struktura Projektu
 
-**Hlavní adresář:** `/opt/kms-tools/`
+**Datum**: 2025-12-31
+**Autor**: Odoo Biznes <odoo@biznes.cz>
 
----
-
-## 📂 Kompletní Struktura
+## Hlavní adresář projektu
 
 ```
-/opt/kms-tools/                    # HLAVNÍ PROJEKT (75 MB celkem)
+/opt/kms-tools/
+```
+
+## Kompletní struktura adresářů
+
+```
+/opt/kms-tools/
+├── api/                           # FastAPI Backend
+│   ├── main.py                    # Hlavní FastAPI aplikace
+│   ├── auth.py                    # JWT autentizace
+│   ├── database.py                # PostgreSQL připojení
+│   ├── config.py                  # Konfigurace
+│   └── routers/                   # API routery
+│       ├── resources_mgmt.py      # 🆕 Resource Management System (572 lines)
+│       ├── logins.py              # 🆕 Credentials Management
+│       ├── auth.py                # Autentizační endpoints
+│       ├── categories.py          # Kategorie management
+│       ├── objects.py             # Objekty/projekty
+│       ├── documents.py           # Dokumenty
+│       ├── search.py              # Globální vyhledávání
+│       ├── tools.py               # Nástroje (terminal, Claude, atd.)
+│       └── metrics.py             # Metriky a monitoring
 │
-├── 📄 CHANGELOG-DEBUG.md          # Co jsme přidali (debug logging)
-├── 📄 DEBUG-FINDINGS.md           # Zjištění a řešení problémů
-├── 📄 DEBUG-GUIDE.md              # Návod na debug logging
-├── 📄 PROJECT-STRUCTURE.md        # Tento soubor
-│
-├── 🔧 api/                        # BACKEND API (FastAPI) - 232 KB
-│   ├── main.py                    # Hlavní FastAPI aplikace (4.6 KB)
-│   ├── database.py                # Databázové připojení (PostgreSQL)
-│   ├── models.py                  # Pydantic modely (6.4 KB)
-│   ├── requirements.txt           # Python dependencies
+├── frontend/public/               # Web UI
+│   ├── index.html                 # Hlavní HTML
+│   ├── styles.css                 # CSS (5230 lines - includes RESOURCES)
+│   ├── app.js                     # Hlavní aplikace
 │   │
-│   └── routers/                   # API Endpointy
-│       ├── categories.py          # /api/categories/* (5.7 KB)
-│       ├── objects.py             # /api/objects/* (6.3 KB)
-│       ├── documents.py           # /api/documents/* (5.0 KB)
-│       ├── search.py              # /api/search/* (3.3 KB)
-│       ├── system.py              # /api/system/* (3.9 KB)
-│       ├── tools.py               # /api/tools/* (28 KB) ← HLAVNÍ SOUBOR
-│       └── tools_claude.py        # Claude AI integrace (4.1 KB)
+│   └── js/modules/                # Feature moduly
+│       ├── module-resources.js    # 🆕 RESOURCES modul (925 lines)
+│       ├── module-logins.js       # 🆕 LOGINS modul (900+ lines)
+│       ├── module-develop.js      # DEVELOP modul
+│       ├── module-tasks.js        # TASKS modul
+│       ├── module-deploy.js       # DEPLOY modul
+│       ├── module-ideas.js        # IDEAS modul
+│       ├── module-analytics.js    # ANALYTICS modul
+│       ├── module-clients.js      # CLIENTS modul
+│       └── module-finance.js      # FINANCE modul
 │
-├── 🌐 frontend/                   # FRONTEND WEB (88 KB)
-│   ├── public/                    # Statické soubory
-│   └── src/                       # React/Vue source kód (prázdné)
+├── sql/                           # SQL migrace
+│   ├── schema.sql                 # Hlavní databázové schéma
+│   ├── 001_logins_credentials.sql # 🆕 LOGINS modul migrace
+│   ├── 002_resource_management.sql # 🆕 Resource Management migrace (450 lines)
+│   └── 003_add_current_resources.sql # Inicializace resources (22 zdrojů)
 │
-├── 🛠️ bin/                        # UTILITY SKRIPTY (80 KB)
-│   ├── kms-cli.py                 # CLI nástroj pro správu (23 KB)
-│   ├── kms-import.py              # Import dat do databáze (14 KB)
-│   ├── kms-sync-daemon.py         # Sync daemon (20 KB)
-│   ├── test-all-tools.sh          # Test všech nástrojů (6.3 KB)
-│   ├── test-db.sh                 # Test databáze
-│   └── view-logs.sh               # Interaktivní log viewer (2.9 KB)
+├── lib/                           # Sdílené knihovny
+│   └── secrets.py                 # WikiSys Age encryption wrapper
 │
-├── 💾 data/                       # DATA (88 KB)
-│   └── code-server/               # VS Code konfigurace
+├── bin/                           # Bash skripty
+│   ├── backup-kms.sh              # Automatické zálohy
+│   ├── healthcheck-cron.sh        # Health monitoring
+│   └── test-all-tools.sh          # Testování nástrojů
 │
-├── 📚 docs/                       # DOKUMENTACE (4 KB)
+├── venv/                          # Python virtual environment
 │
-├── 📜 lib/                        # KNIHOVNY (4 KB)
-│
-├── 🗄️ sql/                        # SQL SKRIPTY (4 KB)
-│   └── schema.sql                 # Databázové schéma
-│
-├── ⚙️ systemd/                    # SYSTEMD SERVICES (4 KB)
-│   ├── kms-api.service
-│   ├── kms-sync-daemon.service
-│   └── další služby...
-│
-└── 🐍 venv/                       # PYTHON VIRTUAL ENV (75 MB)
-    ├── bin/                       # Python executables
-    ├── lib/                       # Nainstalované balíčky
-    └── include/                   # Header soubory
+├── README.md                      # Hlavní dokumentace
+├── RESOURCES-DOCUMENTATION.md     # 🆕 Resource Management dokumentace
+└── PROJECT-STRUCTURE.md           # 🆕 Tento soubor
 ```
 
----
+## Nový modul: RESOURCES (Resource Management) 🆕
 
-## 🎯 Hlavní Soubory Kódu
+### Popis
+Centralizovaný systém pro správu všech systémových zdrojů - portů, IP adres, disků, tmpfs, databází, služeb, domén a dalších. **Zabraňuje konfliktům a duplicitním alokacím.**
 
-### Backend API (Python/FastAPI)
+### Komponenty
+- **Backend**: `/opt/kms-tools/api/routers/resources_mgmt.py` (572 lines)
+- **Frontend**: `/opt/kms-tools/frontend/public/js/modules/module-resources.js` (925 lines)
+- **Database**: `/opt/kms-tools/sql/002_resource_management.sql` (450 lines)
+- **CSS**: V `/opt/kms-tools/frontend/public/styles.css` (lines 4593-5230)
+- **Dokumentace**: `/opt/kms-tools/RESOURCES-DOCUMENTATION.md`
 
-**Hlavní aplikace:**
-- `/opt/kms-tools/api/main.py` - FastAPI app, middleware, routery
+### Typy zdrojů (19 typů)
+- `port` - Síťové porty
+- `ip_address` - IP adresy
+- `directory` - Adresáře
+- `tmpfs` - tmpfs RAM mounts
+- `database` - PostgreSQL databáze
+- `db_user` - Databázoví uživatelé
+- `systemd` - Systemd služby
+- `domain` - Domény/subdomény
+- `ssl_cert` - SSL certifikáty
+- `nginx_conf` - Nginx konfigurace
+- `socket` - Unix sockety
+- `redis_db` - Redis databáze
+- `cron_job` - Cron joby
+- `user` - Systémoví uživatelé
+- `env_var` - Environment proměnné
+- `backup_path` - Záložní cesty
+- `log_path` - Log cesty
+- `secret` - Tajné klíče
+- `other` - Ostatní
 
-**Databáze:**
-- `/opt/kms-tools/api/database.py` - PostgreSQL connection pool
-- `/opt/kms-tools/api/models.py` - Pydantic data modely
+### Databázové tabulky
+```sql
+system_resources                -- Hlavní tabulka alokovaných zdrojů
+resource_allocation_history     -- Audit trail (kdo, kdy, odkud)
+resource_conflicts              -- Detekované konflikty
+resource_dependencies           -- Závislosti mezi zdroji
+resource_reservations           -- Rezervace zdrojů
 
-**API Routery:**
-- `/opt/kms-tools/api/routers/tools.py` ← **NEJVĚTŠÍ SOUBOR (28 KB)**
-  - Terminal, File Browser, VS Code endpointy
-  - Windsurf, Cursor endpointy
-  - Claude AI chat
-  - Status všech nástrojů
-  - Kompletní debug logging
-
-- `/opt/kms-tools/api/routers/objects.py` - Správa objektů/projektů
-- `/opt/kms-tools/api/routers/categories.py` - Kategorie
-- `/opt/kms-tools/api/routers/documents.py` - Dokumenty
-- `/opt/kms-tools/api/routers/search.py` - Vyhledávání
-- `/opt/kms-tools/api/routers/system.py` - Systémové info
-
-### Frontend (Web Interface)
-
-**React/Vue aplikace:**
-- `/opt/kms-tools/frontend/src/` - Source kód (prázdné - TODO)
-- `/opt/kms-tools/frontend/public/` - Statické soubory
-
-### Utility Skripty
-
-**Python CLI:**
-- `/opt/kms-tools/bin/kms-cli.py` - CLI nástroj
-- `/opt/kms-tools/bin/kms-import.py` - Import dat
-- `/opt/kms-tools/bin/kms-sync-daemon.py` - Synchronizační daemon
-
-**Bash skripty:**
-- `/opt/kms-tools/bin/test-all-tools.sh` - Testování nástrojů
-- `/opt/kms-tools/bin/view-logs.sh` - Log viewer
-
----
-
-## 🗄️ Databáze
-
-**Typ:** PostgreSQL
-**Uživatel:** kms_user
-**Databáze:** kms_db
-
-**Schéma:**
-```
-/opt/kms-tools/sql/schema.sql
+-- Views
+v_active_resources              -- Souhrn aktivních zdrojů
+v_resource_conflicts            -- Detail konfliktů
 ```
 
-**Tabulky:**
-- `categories` - Kategorie projektů (odoo, wordpress, atd.)
-- `objects` - Projekty/objekty
-- `documents` - Dokumenty přiřazené k objektům
-- `sync_log` - Log synchronizace
+### API Endpoints (10)
+```
+GET    /api/resources                    # List all resources
+POST   /api/resources                    # Allocate new resource
+GET    /api/resources/{id}               # Get resource details
+PUT    /api/resources/{id}               # Update resource
+DELETE /api/resources/{id}               # Release resource
+POST   /api/resources/check-availability # Check if available
+POST   /api/resources/find-available-ports # Find N available ports
+GET    /api/resources/summary            # Summary by type
+GET    /api/resources/conflicts          # List conflicts
+GET    /api/resources/{id}/history       # Allocation history
+```
 
----
+### Funkce
+- ✅ Kontrola dostupnosti před alokací (prevence konfliktů)
+- ✅ Automatické hledání volných portů
+- ✅ Kompletní audit trail (kdo, kdy, z jaké IP alokoval)
+- ✅ Detekce konfliktů přes DB triggers
+- ✅ Lock mechanism pro kritické zdroje
+- ✅ Multi-environment support (production, staging, development)
+- ✅ Resource dependencies tracking
+- ✅ Historie změn pro každý zdroj
 
-## 🔌 Systemd Services
+### Aktuální stav
+- **22 registrovaných zdrojů**:
+  - 8 portů (80, 443, 5432, 7681-7683, 8000, 22770)
+  - 5 systemd služeb
+  - 3 adresáře
+  - 2 domény
+  - 2 nginx configy
+  - 1 databáze
+  - 1 db_user
 
-**Lokace:** `/etc/systemd/system/`
+### Frontend features
+- Dashboard s statistikami
+- Filtry (typ, status, environment, search)
+- Conflict monitor
+- Port discovery wizard
+- Resource allocation form
+- History viewer
+- Color-coded status badges
+- Interactive resource cards
 
-**Služby:**
+## Workflow: Přidání nového zdroje
+
+1. **Otevři RESOURCES modul** v KMS UI
+2. **Klikni "Allocate Resource"**
+3. **Vyplň formulář:**
+   - Typ zdroje (např. port)
+   - Název (např. "My Service Port")
+   - Hodnota (např. "9000")
+   - Owner service (např. "my-service")
+   - Environment (production/staging/development)
+4. **Klikni "Check Availability"** - systém zkontroluje duplicity
+5. **Klikni "Allocate Resource"** - pokud je volný, alokuje se
+6. **Zdroj je nyní chráněn** - nikdo jiný nemůže použít stejný port/resource
+
+## Výhody centralizovaného Resource Management
+
+### ❌ Před implementací
 ```bash
-kms-api.service              # FastAPI backend (port 8000)
-kms-sync-daemon.service      # Sync daemon
-kms-tools-ttyd.service       # Web terminal (port 7681)
-kms-tools-filebrowser.service # File browser (port 8082)
-kms-tools-code-server.service # VS Code (port 8443)
+# Developer A
+systemctl start my-service.service  # Uses port 8000
+# Developer B
+systemctl start other-service.service  # Also uses port 8000
+# 💥 CONFLICT! Services crash
 ```
 
-**Konfigurace služeb také v:**
-```
-/opt/kms-tools/systemd/
-```
-
----
-
-## 🌐 Webový Frontend
-
-**Hlavní vstupní bod:**
-```
-https://kms.it-enterprise.solutions/
-```
-
-**API Endpoints:**
-```
-https://kms.it-enterprise.solutions/api/
-https://kms.it-enterprise.solutions/api/docs  (Swagger UI)
-```
-
-**Nástroje:**
-```
-https://kms.it-enterprise.solutions/tools/terminal/
-https://kms.it-enterprise.solutions/tools/files/
-https://kms.it-enterprise.solutions/tools/vscode/
-```
-
----
-
-## 📊 API Endpointy (kompletní seznam)
-
-### Kategorie
-```
-GET    /api/categories          # Seznam všech kategorií
-GET    /api/categories/{id}     # Detail kategorie
-POST   /api/categories          # Nová kategorie
-PUT    /api/categories/{id}     # Update kategorie
-DELETE /api/categories/{id}     # Smazat kategorii
-```
-
-### Objekty (Projekty)
-```
-GET    /api/objects             # Seznam všech objektů
-GET    /api/objects/{id}        # Detail objektu
-GET    /api/objects/category/{slug}  # Objekty podle kategorie
-POST   /api/objects             # Nový objekt
-PUT    /api/objects/{id}        # Update objektu
-DELETE /api/objects/{id}        # Smazat objekt
-```
-
-### Dokumenty
-```
-GET    /api/documents           # Seznam dokumentů
-GET    /api/documents/object/{id}    # Dokumenty objektu
-POST   /api/documents           # Nový dokument
-PUT    /api/documents/{id}      # Update dokumentu
-DELETE /api/documents/{id}      # Smazat dokument
-```
-
-### Vyhledávání
-```
-GET    /api/search?q={query}   # Fulltextové vyhledávání
-GET    /api/search/objects?q={query}  # Hledat objekty
-GET    /api/search/documents?q={query}  # Hledat dokumenty
-```
-
-### Systém
-```
-GET    /api/system/health       # Zdraví systému
-GET    /api/system/stats        # Statistiky
-GET    /api/system/changelog    # Changelog
-GET    /api/system/sync-status  # Status synchronizace
-```
-
-### Nástroje ← **HLAVNÍ ČÁST**
-```
-# Web nástroje
-POST   /api/tools/terminal/open      # Otevřít web terminal
-POST   /api/tools/files/open         # Otevřít file browser
-POST   /api/tools/vscode/open        # Otevřít VS Code
-
-# Desktop editory
-POST   /api/tools/windsurf/open      # Otevřít Windsurf
-POST   /api/tools/cursor/open        # Otevřít Cursor
-
-# Claude AI
-POST   /api/tools/claude/chat        # Chat s Claude
-GET    /api/tools/claude/models      # Seznam modelů
-
-# Status
-GET    /api/tools/status             # Status všech nástrojů
-```
-
----
-
-## 🔧 Konfigurace
-
-### Environment Variables
-
-**V systemd service:**
-```
-/etc/systemd/system/kms-api.service
-```
-
-**Proměnné:**
+### ✅ Po implementaci
 ```bash
-ANTHROPIC_API_KEY=sk-ant-api...
-PATH=/opt/kms-tools/venv/bin:/usr/local/bin:/usr/bin:/bin
-VIRTUAL_ENV=/opt/kms-tools/venv
+# Developer A
+1. Check KMS Resources: port 8000 available? YES
+2. Allocate in KMS: port 8000 → my-service
+3. Start service on port 8000
+4. Port 8000 is now PROTECTED
+
+# Developer B
+1. Check KMS Resources: port 8000 available? NO (allocated to my-service)
+2. Find available: GET /api/resources/find-available-ports
+3. System suggests: 8001
+4. Allocate in KMS: port 8001 → other-service
+5. Start service on port 8001
+# ✅ NO CONFLICT!
 ```
 
-### Python Dependencies
+## Production URL
 
 ```
-/opt/kms-tools/api/requirements.txt
+https://kms.it-enterprise.solutions
 ```
 
-**Hlavní balíčky:**
-- fastapi
-- uvicorn
-- psycopg2-binary
-- anthropic
-- pydantic
-- requests
+### Přístup k RESOURCES modulu
+1. Login: https://kms.it-enterprise.solutions
+2. Username: `devsoft`
+3. Password: `devsoft123`
+4. Klikni na fialové tlačítko **RESOURCES** v navigaci
+5. Dashboard se zobrazí s 22 registrovanými zdroji
 
----
+## Git Repository
 
-## 📝 Logy
+```
+Remote: https://github.com/odoobiznes/WIKI-KMS
+SSH:    git@github.com:odoobiznes/WIKI-KMS.git
+Branch: main
+```
 
-**API logy (systemd):**
+## Statistiky projektu
+
+### Lines of Code
+```
+Python (API):         ~5,000 lines
+JavaScript (Frontend): ~15,000 lines
+CSS:                  ~5,230 lines
+SQL:                  ~1,500 lines
+Markdown (Docs):      ~2,000 lines
+Total:                ~29,000 lines (source code only)
+```
+
+### Files
+```
+Total files:       ~1,200
+Python modules:    ~15
+JS modules:        ~30
+SQL migrations:    4
+Documentation:     3 (README, RESOURCES-DOCS, PROJECT-STRUCTURE)
+```
+
+### Modules
+```
+Core modules:      8 (IDEAS, DEVELOP, DEPLOY, TASKS, ANALYTICS, CLIENTS, FINANCE, LOGINS)
+New module:        1 (RESOURCES) 🆕
+Total:             9 modules
+```
+
+## Databáze
+
+```sql
+-- Connection
+Host:     localhost
+Port:     5432
+Database: kms_db
+User:     kms_user
+
+-- Tables
+Core:           5 (users, categories, subcategories, objects, documents)
+LOGINS:         2 (credentials, credentials_audit_log)
+RESOURCES:      5 (system_resources, resource_allocation_history, 
+                   resource_conflicts, resource_dependencies, 
+                   resource_reservations)
+Total:         12 tables + 2 views
+```
+
+## Technologie
+
+- **Python** 3.11+
+- **FastAPI** - Modern web framework
+- **PostgreSQL** - Relační databáze
+- **Vanilla JS** - No framework, pure ES6+
+- **Nginx** - Reverse proxy + SSL
+- **systemd** - Service management
+- **Git** - Version control
+- **Age encryption** - WikiSys integration
+
+## Deployment
+
 ```bash
-sudo journalctl -u kms-api.service -f
-```
-
-**Debug log soubor:**
-```
-/tmp/kms-api-debug.log
-```
-
-**Interaktivní log viewer:**
-```bash
-/opt/kms-tools/bin/view-logs.sh
-```
-
----
-
-## 🚀 Jak spustit
-
-### Manuální start služby
-```bash
-# Restart API
+# API Service
+sudo systemctl status kms-api.service
 sudo systemctl restart kms-api.service
 
-# Status
-systemctl status kms-api.service
+# Database
+sudo -u postgres psql kms_db
 
-# Sledovat logy
-sudo journalctl -u kms-api.service -f
+# Nginx
+sudo nginx -t && sudo systemctl reload nginx
+
+# Logs
+journalctl -u kms-api.service -f
+tail -f /tmp/kms-api-debug.log
 ```
 
-### Dev mode (lokální)
-```bash
-cd /opt/kms-tools/api
-source ../venv/bin/activate
-uvicorn main:app --host 127.0.0.1 --port 8000 --reload
-```
+## Příští kroky: Meta-development
 
-### Testování
-```bash
-# Test všech nástrojů
-/opt/kms-tools/bin/test-all-tools.sh
+### Cíl: KMS spravuje sám sebe
 
-# Test API
-curl http://localhost:8000/api/tools/status
-```
+1. **Vytvořit KMS projekt v KMS**
+   - Kategorie: "Internal Projects"
+   - Objekt: "KMS Development"
+   - Dokumenty: Migrace, features, bugs
+
+2. **Trackovat resources**
+   - Port 8000 → kms-api
+   - Port 5432 → PostgreSQL
+   - Directory /opt/kms-tools → KMS
+   - atd.
+
+3. **Používat TASKS modul**
+   - Vývoj nových features
+   - Bug tracking
+   - Code review tasks
+
+4. **DEVELOP modul**
+   - Git integration
+   - Terminal pro debugging
+   - Cursor pro vývoj
+
+5. **DEPLOY modul**
+   - Deployment workflow
+   - Backup management
+   - Version tracking
 
 ---
 
-## 🎓 Dokumentace
-
-**Debug dokumentace:**
-- `/opt/kms-tools/DEBUG-GUIDE.md` - Návod na debugging
-- `/opt/kms-tools/DEBUG-FINDINGS.md` - Zjištění z debuggingu
-- `/opt/kms-tools/CHANGELOG-DEBUG.md` - Co bylo přidáno
-
-**API dokumentace:**
-```
-http://localhost:8000/api/docs      # Swagger UI
-http://localhost:8000/api/redoc     # ReDoc
-```
-
----
-
-## 📈 Statistiky Projektu
-
-```
-Celková velikost:      ~75 MB
-Backend kód:           232 KB (Python)
-Frontend kód:          88 KB (prázdné)
-Utility skripty:       80 KB
-Virtual env:           75 MB
-Debug dokumentace:     28 KB
-
-Počet API endpointů:   ~35
-Počet Python souborů:  ~15
-Počet Bash skriptů:    ~5
-```
-
----
-
-## 🔐 Přístupy
-
-**PostgreSQL:**
-```
-Host: localhost
-Database: kms_db
-User: kms_user
-Password: [v env nebo v konfig souboru]
-```
-
-**Web Services:**
-```
-API:           http://localhost:8000
-Terminal:      http://localhost:7681
-File Browser:  http://localhost:8082
-VS Code:       http://localhost:8443
-```
-
-**Reverse Proxy (Nginx):**
-```
-https://kms.it-enterprise.solutions/
-```
-
----
-
-## 🛠️ Vývoj
-
-**Hlavní vývojové soubory:**
-1. `/opt/kms-tools/api/routers/tools.py` - Nástroje & integrace
-2. `/opt/kms-tools/api/main.py` - Aplikační logika
-3. `/opt/kms-tools/bin/kms-cli.py` - CLI nástroje
-
-**Přidání nového endpointu:**
-1. Editovat příslušný router v `/opt/kms-tools/api/routers/`
-2. Přidat do `main.py` pokud je nový router
-3. Restart služby: `sudo systemctl restart kms-api.service`
-
-**Přidání nového nástroje:**
-1. Editovat `/opt/kms-tools/api/routers/tools.py`
-2. Přidat endpoint funkci
-3. Přidat do `/api/tools/status`
-4. Restart a test
-
----
-
-**Vytvořeno:** 30.12.2025 02:00 CET
-**Verze:** 1.0.0
-**Vlastník:** devops@it-enterprise.solutions
+**Poslední aktualizace**: 2025-12-31 19:20 CET
+**Verze**: 1.0.0

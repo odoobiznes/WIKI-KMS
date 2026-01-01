@@ -27,7 +27,7 @@ logger.info("=" * 80)
 logger.info("KMS API Starting Up")
 logger.info("=" * 80)
 
-from routers import categories, subcategories, objects, documents, search, system, tools, resources, auth, oauth2, metrics, logins
+from routers import categories, subcategories, objects, documents, search, system, tools, resources, auth, oauth2, metrics, logins, resources_mgmt
 
 logger.info("All routers imported successfully")
 
@@ -184,6 +184,8 @@ try:
     logger.debug("  ✓ Metrics router registered")
     app.include_router(logins.router, prefix="/api")
     logger.debug("  ✓ Logins router registered")
+    app.include_router(resources_mgmt.router, prefix="/api")
+    logger.debug("  ✓ Resource Management router registered")
     logger.info("All routers registered successfully")
 except Exception as e:
     logger.error(f"Failed to register routers: {e}", exc_info=True)

@@ -89,6 +89,16 @@ const ModuleRouter = {
             showProjects: true,
             projectsCollapsed: true, // Hidden by default
             tools: ['new-credential', 'test-all', 'export-vault', 'rotate-keys']
+        },
+        resources: {
+            id: 'resources',
+            name: 'RESOURCES',
+            icon: 'fa-server',
+            color: '#8e44ad',
+            description: 'System Resources Management',
+            showProjects: true,
+            projectsCollapsed: true, // Hidden by default
+            tools: ['allocate-resource', 'find-ports', 'check-conflicts', 'refresh-resources']
         }
     },
 
@@ -127,23 +137,25 @@ const ModuleRouter = {
      */
     renderModuleNav() {
         const navHtml = `
-            <nav class="module-nav" id="module-nav">
-                <button class="module-nav-btn categories-btn ${app.projectSelectorOpen ? 'active' : ''}"
-                        onclick="app.toggleProjectSelector()"
-                        title="Browse Categories & Projects">
-                    <i class="fas fa-folder-open"></i>
-                </button>
-                ${Object.values(this.modules).map(module => `
-                    <button class="module-nav-btn ${this.currentModule === module.id ? 'active' : ''}"
-                            data-module="${module.id}"
-                            onclick="ModuleRouter.switchModule('${module.id}')"
-                            title="${module.description}"
-                            style="--module-color: ${module.color}">
-                        <i class="fas ${module.icon}"></i>
-                        <span class="module-name">${module.name}</span>
+            <div class="module-nav-wrapper">
+                <nav class="module-nav" id="module-nav">
+                    <button class="module-nav-btn categories-btn ${app.projectSelectorOpen ? 'active' : ''}"
+                            onclick="app.toggleProjectSelector()"
+                            title="Browse Categories & Projects">
+                        <i class="fas fa-folder-open"></i>
                     </button>
-                `).join('')}
-            </nav>
+                    ${Object.values(this.modules).map(module => `
+                        <button class="module-nav-btn ${this.currentModule === module.id ? 'active' : ''}"
+                                data-module="${module.id}"
+                                onclick="ModuleRouter.switchModule('${module.id}')"
+                                title="${module.description}"
+                                style="--module-color: ${module.color}">
+                            <i class="fas ${module.icon}"></i>
+                            <span class="module-name">${module.name}</span>
+                        </button>
+                    `).join('')}
+                </nav>
+            </div>
         `;
 
         // Insert nav after header
@@ -264,6 +276,14 @@ const ModuleRouter = {
                 }
                 contentHtml = '<div class="module-placeholder">Loading LOGINS module...</div>';
                 break;
+            case 'resources':
+                // Call ResourcesModule to render
+                if (typeof ResourcesModule !== 'undefined') {
+                    setTimeout(() => ResourcesModule.render(), 0);
+                    return; // ResourcesModule handles its own rendering
+                }
+                contentHtml = '<div class="module-placeholder">Loading RESOURCES module...</div>';
+                break;
             default:
                 contentHtml = '<div class="module-placeholder">Module coming soon...</div>';
         }
@@ -352,6 +372,12 @@ const ModuleRouter = {
                 { action: 'test-all', icon: 'fa-vial', label: 'Test All' },
                 { action: 'export-vault', icon: 'fa-download', label: 'Export Vault' },
                 { action: 'rotate-keys', icon: 'fa-sync-alt', label: 'Rotate Keys' }
+            ],
+            resources: [
+                { action: 'allocate-resource', icon: 'fa-plus', label: 'Allocate Resource' },
+                { action: 'find-ports', icon: 'fa-search', label: 'Find Ports' },
+                { action: 'check-conflicts', icon: 'fa-exclamation-triangle', label: 'Check Conflicts' },
+                { action: 'refresh-resources', icon: 'fa-sync', label: 'Refresh' }
             ]
         };
 
@@ -453,6 +479,24 @@ const ModuleRouter = {
                 break;
             case 'rotate-keys':
                 if (typeof LoginsModule !== 'undefined') LoginsModule.rotateKeys();
+                break;
+            case 'allocate-resource':
+                if (typeof ResourcesModule !== 'undefined') ResourcesModule.showAllocateModal();
+                break;
+            case 'find-ports':
+                if (typeof ResourcesModule !== 'undefined') ResourcesModule.showFindPortsModal();
+                break;
+            case 'check-conflicts':
+                if (typeof ResourcesModule !== 'undefined') {
+                    if (ResourcesModule.conflicts.length > 0) {
+                        showNotification(`Found ${ResourcesModule.conflicts.length} conflicts`, 'warning');
+                    } else {
+                        showNotification('No conflicts detected', 'success');
+                    }
+                }
+                break;
+            case 'refresh-resources':
+                if (typeof ResourcesModule !== 'undefined') ResourcesModule.refresh();
                 break;
             default:
                 showNotification(`Action "${action}" coming soon`, 'info');
