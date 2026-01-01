@@ -260,12 +260,13 @@ const TasksModule = {
         const taskIdAttr = this.escapeHtml(taskId);
 
         return `
-            <div class="task-card"
+            <div class="task-card task-card-compact"
                  draggable="true"
                  ondragstart="TasksModule.handleDragStart(event)"
                  onclick="TasksModule.viewTaskFromCard(this)"
                  data-task-id="${taskIdAttr}">
-                <div class="task-card-header">
+                <div class="task-card-row">
+                    <span class="task-card-title">${this.escapeHtml(task.title)}</span>
                     <span class="task-priority" style="background: ${priority?.color || '#6c757d'}">
                         ${priority?.name || 'Normal'}
                     </span>
@@ -278,28 +279,7 @@ const TasksModule = {
                         </button>
                     </div>
                 </div>
-                <div class="task-card-title">${this.escapeHtml(task.title)}</div>
-                ${task.description ? `<div class="task-card-description">${this.escapeHtml(task.description)}</div>` : ''}
-                <div class="task-card-footer">
-                    ${task.assignee ? `
-                        <div class="task-assignee">
-                            <i class="fas fa-user"></i>
-                            <span>${this.escapeHtml(task.assignee)}</span>
-                        </div>
-                    ` : ''}
-                    ${task.dueDate ? `
-                        <div class="task-due-date">
-                            <i class="fas fa-calendar"></i>
-                            <span>${this.escapeHtml(task.dueDate)}</span>
-                        </div>
-                    ` : ''}
-                    ${task.phase_name ? `
-                        <div class="task-phase">
-                            <i class="fas fa-layer-group"></i>
-                            <span>${this.escapeHtml(task.phase_name)}</span>
-                        </div>
-                    ` : ''}
-                </div>
+                ${task.description ? `<div class="task-card-description"><i class="fas fa-tag"></i> ${this.escapeHtml(task.description)}</div>` : ''}
             </div>
         `;
     },

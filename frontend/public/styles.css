@@ -3627,6 +3627,65 @@ body {
     cursor: grabbing;
 }
 
+/* Compact task card - 2 rows layout */
+.task-card-compact {
+    padding: 0.3rem 0.5rem !important;
+}
+
+.task-card-compact .task-card-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.task-card-compact .task-card-title {
+    flex: 1;
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+}
+
+.task-card-compact .task-priority {
+    flex-shrink: 0;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.65rem;
+    border-radius: 3px;
+    color: white;
+}
+
+.task-card-compact .task-card-actions {
+    flex-shrink: 0;
+    display: flex;
+    gap: 0.2rem;
+}
+
+.task-card-compact .task-card-actions button {
+    padding: 0.1rem 0.25rem;
+    font-size: 0.7rem;
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+}
+
+.task-card-compact .task-card-actions button:hover {
+    color: #333;
+}
+
+.task-card-compact .task-card-description {
+    font-size: 0.7rem;
+    color: #888;
+    margin-top: 0.15rem;
+    line-height: 1.2;
+    padding-left: 0;
+}
+
+/* Legacy header styles */
 .task-card-header {
     display: flex;
     justify-content: space-between;
