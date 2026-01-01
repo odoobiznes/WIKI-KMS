@@ -536,6 +536,8 @@ body {
 .tree-children {
     margin-left: 0.5rem;
     padding-left: 0.25rem;
+    padding-top: 0;
+    padding-bottom: 0;
     border-left: 1px solid #e9ecef;
 }
 
@@ -546,22 +548,16 @@ body {
     text-align: center;
 }
 
-.subcategory-item .tree-item-content {
-    padding-left: 0.75rem;
-    padding-top: 0.1rem;
-    padding-bottom: 0.1rem;
-}
-
+.subcategory-item .tree-item-content,
 .project-item .tree-item-content {
-    padding-left: 1.25rem;
-    padding-top: 0.1rem;
-    padding-bottom: 0.1rem;
+    padding: 0.1rem 0.3rem 0.1rem 0.75rem;
 }
 
 .subcategory-item,
 .project-item {
-    font-size: 0.7rem;
-    line-height: 1.1;
+    margin: 0;
+    font-size: 0.72rem;
+    line-height: 1;
 }
 
 /* Collapsed sidebar styles */
