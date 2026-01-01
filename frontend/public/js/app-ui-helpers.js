@@ -62,11 +62,25 @@ const AppUIHelpers = {
     },
 
     /**
-     * Close modal
+     * Close modal - works for both static and dynamic modals
      */
     closeModal() {
-        const modal = document.getElementById('modal');
-        modal.classList.remove('show');
+        // Try static modal first
+        const staticModal = document.getElementById('modal');
+        if (staticModal) {
+            staticModal.classList.remove('show');
+        }
+        
+        // Also try any visible dynamic modal with common modal classes
+        const dynamicModals = document.querySelectorAll('.modal[style*="display: flex"], .modal[style*="display:flex"], .modal.show');
+        dynamicModals.forEach(modal => {
+            modal.style.display = 'none';
+            modal.remove();
+        });
+        
+        // Remove modal overlay if exists
+        const overlays = document.querySelectorAll('.modal-overlay');
+        overlays.forEach(overlay => overlay.remove());
     },
 
     /**
@@ -283,5 +297,10 @@ const AppUIHelpers = {
 // Export for use in other modules
 if (typeof window !== 'undefined') {
     window.AppUIHelpers = AppUIHelpers;
+    
+    // Global closeModal function for use in onclick handlers
+    window.closeModal = function() {
+        AppUIHelpers.closeModal();
+    };
 }
 
