@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Voice Hub - KMS IT-Enterprise</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .voice-button {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 60px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+            margin: 0 auto;
+            display: block;
+        }
+
+        .voice-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.6);
+        }
+
+        .voice-button:active {
+            transform: scale(0.95);
+        }
+
+        .voice-button.recording {
+            animation: pulse 1.5s infinite;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 10px 30px rgba(245, 87, 108, 0.4);
+            }
+            50% {
+                transform: scale(1.1);
+                box-shadow: 0 15px 40px rgba(245, 87, 108, 0.6);
+            }
+        }
+
+        .status {
+            text-align: center;
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            background: #f7f7f7;
+            min-height: 60px;
+        }
+
+        .status-text {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .status-detail {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .transcript-box {
+            background: #f0f4ff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .transcript-box.show {
+            display: block;
+        }
+
+        .transcript-item {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .transcript-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .transcript-label {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .transcript-text {
+            color: #333;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .ai-response {
+            background: #e8f5e9;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        .ai-response .transcript-label {
+            color: #4caf50;
+        }
+
+        .settings {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .setting-group {
+            margin-bottom: 15px;
+        }
+
+        .setting-label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            background: white;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 AI Voice Hub</h1>
+        <p class="subtitle">Mluvte s AI asistentem</p>
+
+        <button id="voiceButton" class="voice-button">
+            🎤
+        </button>
+
+        <div class="status">
+            <div class="status-text" id="statusText">Klikněte pro nahrávání</div>
+            <div class="status-detail" id="statusDetail"></div>
+        </div>
+
+        <div class="transcript-box" id="transcriptBox"></div>
+
+        <div class="error" id="errorBox"></div>
+
+        <div class="settings">
+            <div class="setting-group">
+                <label class="setting-label">Speech-to-Text</label>
+                <select id="sttProvider">
+                    <option value="whisper_api">Whisper API (nejlepší)</option>
+                    <option value="whisper_local">Whisper Local (offline)</option>
+                    <option value="google">Google (TBD)</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label class="setting-label">AI Asistent</label>
+                <select id="aiProvider">
+                    <option value="auto">Automatický výběr (doporučeno)</option>
+                    <option value="claude_primary">Claude (primární)</option>
+                    <option value="claude_secondary">Claude (sekundární)</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label class="setting-label">Text-to-Speech</label>
+                <select id="ttsProvider">
+                    <option value="elevenlabs">ElevenLabs (premium)</option>
+                    <option value="google">Google (zdarma)</option>
+                    <option value="openai">OpenAI TTS</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://kms.it-enterprise.solutions/api/voice-hub';
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let sessionId = generateSessionId();
+
+        const voiceButton = document.getElementById('voiceButton');
+        const statusText = document.getElementById('statusText');
+        const statusDetail = document.getElementById('statusDetail');
+        const transcriptBox = document.getElementById('transcriptBox');
+        const errorBox = document.getElementById('errorBox');
+
+        function generateSessionId() {
+            return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function showError(message) {
+            errorBox.textContent = message;
+            errorBox.classList.add('show');
+            setTimeout(() => errorBox.classList.remove('show'), 5000);
+        }
+
+        function updateStatus(text, detail = '') {
+            statusText.textContent = text;
+            statusDetail.textContent = detail;
+        }
+
+        function addTranscript(userText, aiText, provider) {
+            transcriptBox.classList.add('show');
+
+            const item = document.createElement('div');
+            item.className = 'transcript-item';
+
+            item.innerHTML = `
+                <div>
+                    <div class="transcript-label">Vy:</div>
+                    <div class="transcript-text">${userText}</div>
+                </div>
+                <div class="ai-response">
+                    <div class="transcript-label">AI (${provider}):</div>
+                    <div class="transcript-text">${aiText}</div>
+                </div>
+            `;
+
+            transcriptBox.insertBefore(item, transcriptBox.firstChild);
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    await processVoiceMessage(audioBlob);
+
+                    // Stop all tracks
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                voiceButton.classList.add('recording');
+                voiceButton.textContent = '⏸️';
+                updateStatus('Nahrávám...', 'Klikněte pro ukončení');
+            } catch (err) {
+                showError('Nelze získat přístup k mikrofonu: ' + err.message);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                voiceButton.classList.remove('recording');
+                voiceButton.textContent = '🎤';
+                updateStatus('Zpracovávám...', '');
+            }
+        }
+
+        async function processVoiceMessage(audioBlob) {
+            try {
+                // Convert blob to base64
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+
+                reader.onloadend = async () => {
+                    const base64Audio = reader.result.split(',')[1];
+
+                    updateStatus('Odesílám...', '');
+
+                    // Send to API
+                    const response = await fetch(`${API_BASE}/message`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            audio_base64: base64Audio,
+                            format: 'webm',
+                            stt_provider: document.getElementById('sttProvider').value,
+                            ai_provider: document.getElementById('aiProvider').value,
+                            tts_provider: document.getElementById('ttsProvider').value,
+                            session_id: sessionId
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                    }
+
+                    const result = await response.json();
+
+                    updateStatus('Přehrávám odpověď...', `Zpracováno za ${result.processing_time_ms}ms`);
+
+                    // Add to transcript
+                    addTranscript(result.transcript, result.ai_response_text, result.ai_provider_used);
+
+                    // Play AI response audio
+                    const audio = new Audio(`${API_BASE}${result.ai_response_audio_url}`);
+                    audio.play();
+
+                    audio.onended = () => {
+                        updateStatus('Klikněte pro nahrávání', '');
+                    };
+
+                    audio.onerror = (e) => {
+                        showError('Chyba při přehrávání odpovědi');
+                        updateStatus('Klikněte pro nahrávání', '');
+                    };
+                };
+            } catch (err) {
+                showError('Chyba zpracování: ' + err.message);
+                updateStatus('Klikněte pro nahrávání', '');
+            }
+        }
+
+        // Voice button event
+        voiceButton.addEventListener('click', () => {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        });
+
+        // Check API health on load
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const health = await response.json();
+
+                if (!health.whisper_available) {
+                    updateStatus('Varování: Whisper API není konfigurováno', 'Nastavte OPENAI_API_KEY');
+                }
+                if (!health.elevenlabs_available && document.getElementById('ttsProvider').value === 'elevenlabs') {
+                    updateStatus('Varování: ElevenLabs není konfigurováno', 'Použije se Google TTS');
+                }
+            } catch (err) {
+                showError('Nelze se připojit k API: ' + err.message);
+            }
+        });
+    </script>
+</body>
+</html>
